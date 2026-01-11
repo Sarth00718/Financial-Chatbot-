@@ -265,6 +265,75 @@ const ChatPageDark = () => {
     navigate('/login');
   };
 
+  const handleShareConversation = async () => {
+    if (!currentConversationId || messages.length === 0) {
+      alert('No conversation to share');
+      return;
+    }
+
+    const conversationText = messages
+      .map((msg) => `${msg.role === 'user' ? 'You' : 'AI'}: ${msg.content}`)
+      .join('\n\n');
+
+    const shareData = {
+      title: 'FinChatBot Conversation',
+      text: conversationText,
+    };
+
+    try {
+      if (navigator.share) {
+        // Use native share on mobile
+        await navigator.share(shareData);
+      } else {
+        // Fallback: Copy to clipboard
+        await navigator.clipboard.writeText(conversationText);
+        alert('Conversation copied to clipboard!');
+      }
+    } catch (error) {
+      console.error('Share failed:', error);
+      // Fallback: Copy to clipboard
+      try {
+        await navigator.clipboard.writeText(conversationText);
+        alert('Conversation copied to clipboard!');
+      } catch (clipboardError) {
+        alert('Failed to share conversation');
+      }
+    }
+  };
+
+  const handleExportConversation = () => {
+    if (!currentConversationId || messages.length === 0) {
+      alert('No conversation to export');
+      return;
+    }
+
+    const currentConversation = conversations.find(c => c._id === currentConversationId);
+    const conversationTitle = currentConversation?.title || 'Conversation';
+    
+    // Create conversation text
+    const conversationText = messages
+      .map((msg) => {
+        const role = msg.role === 'user' ? 'You' : msg.role === 'assistant' ? 'AI Assistant' : 'System';
+        const timestamp = msg.createdAt ? new Date(msg.createdAt).toLocaleString() : '';
+        return `[${timestamp}] ${role}:\n${msg.content}\n`;
+      })
+      .join('\n---\n\n');
+
+    // Create markdown content
+    const markdownContent = `# ${conversationTitle}\n\nExported from FinChatBot\nDate: ${new Date().toLocaleString()}\n\n---\n\n${conversationText}`;
+
+    // Create blob and download
+    const blob = new Blob([markdownContent], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${conversationTitle.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.md`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const toggleRecording = () => {
     if (!recognition) {
       alert('Speech recognition is not supported in your browser. Please use Chrome, Edge, or Safari.');
@@ -464,10 +533,18 @@ const ChatPageDark = () => {
             >
               <BarChart3 className="w-5 h-5 text-slate-400 group-hover:text-blue-400" />
             </button>
-            <button className="hidden md:block p-2.5 hover:bg-slate-800 rounded-xl transition-all group" title="Share">
+            <button 
+              onClick={handleShareConversation}
+              className="hidden md:block p-2.5 hover:bg-slate-800 rounded-xl transition-all group" 
+              title="Share conversation"
+            >
               <Share2 className="w-5 h-5 text-slate-400 group-hover:text-blue-400" />
             </button>
-            <button className="hidden md:block p-2.5 hover:bg-slate-800 rounded-xl transition-all group" title="Export">
+            <button 
+              onClick={handleExportConversation}
+              className="hidden md:block p-2.5 hover:bg-slate-800 rounded-xl transition-all group" 
+              title="Export conversation"
+            >
               <Download className="w-5 h-5 text-slate-400 group-hover:text-blue-400" />
             </button>
           </div>
