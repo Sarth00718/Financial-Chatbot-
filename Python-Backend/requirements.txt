@@ -1,0 +1,49 @@
+# Web Framework
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+
+# Data Validation
+pydantic[email]==2.9.2
+pydantic-settings==2.6.0
+
+# LangChain Core (for RAG pipeline)
+langchain==0.3.7
+langchain-core==0.3.20
+langchain-community==0.3.5
+langchain-text-splitters==0.3.2
+
+# Google Gemini AI
+langchain-google-genai==2.0.5
+
+# Groq AI (Primary LLM)
+langchain-groq==0.2.1
+
+# Embeddings (HuggingFace)
+sentence-transformers==3.3.1
+langchain-huggingface==0.1.2
+
+# Vector Database (Local FAISS)
+faiss-cpu>=1.9.0,<1.14.0
+
+# Environment Variables
+python-dotenv==1.0.1
+
+# HTTP Requests
+requests==2.32.3
+
+# PDF Processing
+pypdf==5.0.1
+pymupdf==1.25.2
+
+# Excel and CSV Processing
+pandas==2.2.0
+openpyxl==3.1.2
+xlrd==2.0.1
+
+# OCR Support
+pytesseract==0.3.10
+easyocr==1.7.1
+opencv-python==4.10.0.84
+
+# File Upload Support
+python-multipart==0.0.12
