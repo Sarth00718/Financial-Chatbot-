@@ -1,14 +1,90 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/src/assets/logo.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
-    <meta name="theme-color" content="#1e293b" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <title>FinChatBot - Financial AI Assistant</title>
-    <meta name="description" content="AI-powered financial document analysis with OCR, multi-modal AI, and real-time insights" />
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Primary Meta Tags -->
+    <title>FinChatBot - AI-Powered Financial Assistant</title>
+    <meta name="title" content="FinChatBot - AI-Powered Financial Assistant" />
+    <meta
+      name="description"
+      content="Intelligent financial document analysis and AI chatbot. Upload documents, ask questions, and get instant insights powered by advanced AI technology."
+    />
+    <meta
+      name="keywords"
+      content="financial AI, document analysis, chatbot, financial assistant, AI analysis, document processing, financial insights"
+    />
+    <meta name="author" content="FinChatBot Team" />
+    <meta name="robots" content="index, follow" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://finchatbot.com/" />
+    <meta
+      property="og:title"
+      content="FinChatBot - AI-Powered Financial Assistant"
+    />
+    <meta
+      property="og:description"
+      content="Intelligent financial document analysis and AI chatbot. Upload documents, ask questions, and get instant insights."
+    />
+    <meta property="og:image" content="/og-image.png" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://finchatbot.com/" />
+    <meta
+      property="twitter:title"
+      content="FinChatBot - AI-Powered Financial Assistant"
+    />
+    <meta
+      property="twitter:description"
+      content="Intelligent financial document analysis and AI chatbot. Upload documents, ask questions, and get instant insights."
+    />
+    <meta property="twitter:image" content="/twitter-image.png" />
+
+    <!-- Theme Color -->
+    <meta name="theme-color" content="#2563eb" />
+    <meta
+      name="theme-color"
+      media="(prefers-color-scheme: dark)"
+      content="#0f172a"
+    />
+
+    <!-- Apple Touch Icon -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!-- Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Preconnect to API -->
+    <link rel="preconnect" href="http://localhost:8000" />
+    <link rel="dns-prefetch" href="http://localhost:8000" />
+
+    <!-- Prevent flash of wrong theme: apply before render -->
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem("theme");
+          var prefersDark = window.matchMedia(
+            "(prefers-color-scheme: dark)",
+          ).matches;
+          if (saved === "dark" || (!saved && prefersDark)) {
+            document.documentElement.classList.add("dark");
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

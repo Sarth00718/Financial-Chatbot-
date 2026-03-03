@@ -5,14 +5,19 @@
 
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
+import helmet from "helmet";
 import path from "path";
 import { fileURLToPath } from "url";
 import { errorHandler } from "./middlewares/errorHandler.middleware.js";
+import { requestLogger } from "./middlewares/requestLogger.middleware.js";
 
 // Import routes
 import authRoutes from "./routes/auth.routes.js";
+import adminRoutes from "./routes/admin.routes.js";
 import conversationRoutes from "./routes/conversation.routes.js";
 import documentRoutes from "./routes/document.routes.js";
+import messageRoutes from "./routes/message.routes.js";
 import analyticsRoutes from "./routes/analytics.routes.js";
 
 // Get directory path (needed for ES modules)
@@ -21,6 +26,20 @@ const __dirname = path.dirname(__filename);
 
 // Create Express app
 const app = express();
+
+/**
+ * Security Middleware
+ * Helmet helps secure Express apps by setting various HTTP headers
+ */
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+}));
+
+/**
+ * Cookie Parser Middleware
+ * Parse cookies from requests
+ */
+app.use(cookieParser());
 
 /**
  * CORS Configuration
@@ -55,6 +74,14 @@ app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 /**
+ * Request Logger Middleware
+ * Log all incoming requests
+ */
+if (process.env.NODE_ENV !== "test") {
+  app.use(requestLogger);
+}
+
+/**
  * Static Files Middleware
  * Serve uploaded files
  */
@@ -64,8 +91,10 @@ app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
  * API Routes
  */
 app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/admin", adminRoutes);
 app.use("/api/v1/conversations", conversationRoutes);
 app.use("/api/v1/documents", documentRoutes);
+app.use("/api/v1/messages", messageRoutes);
 app.use("/api/v1/analytics", analyticsRoutes);
 
 /**

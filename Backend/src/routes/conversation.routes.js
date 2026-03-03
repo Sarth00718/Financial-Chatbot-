@@ -11,13 +11,17 @@ import {
   sendChatMessage,
   deleteConversation,
   updateConversation,
+  searchConversations,
 } from "../controllers/conversation.controller.js";
-import { protect } from "../middlewares/auth.middleware.js";
+import { authenticate } from "../middlewares/auth.middleware.js";
 
 const router = Router();
 
-// Apply authentication to all routes - users must be logged in
-router.use(protect);
+// All conversation routes require authentication
+router.use(authenticate);
+
+// Search conversations (must be before /:conversationId)
+router.get("/search", searchConversations);
 
 // Conversation CRUD operations
 router.route("/")

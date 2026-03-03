@@ -30,14 +30,11 @@ export const uploadDocuments = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid conversation ID");
   }
 
-  // Verify conversation exists and user owns it
-  const conversation = await Conversation.findOne({
-    _id: conversationId,
-    userId: req.user._id
-  });
+  // Verify conversation exists
+  const conversation = await Conversation.findById(conversationId);
 
   if (!conversation) {
-    throw new ApiError(404, "Conversation not found or access denied");
+    throw new ApiError(404, "Conversation not found");
   }
 
   // Process each uploaded file
@@ -156,14 +153,11 @@ export const getConversationDocuments = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid conversation ID");
   }
 
-  // Verify conversation exists and user owns it
-  const conversation = await Conversation.findOne({
-    _id: conversationId,
-    userId: req.user._id
-  });
+  // Verify conversation exists
+  const conversation = await Conversation.findById(conversationId);
 
   if (!conversation) {
-    throw new ApiError(404, "Conversation not found or access denied");
+    throw new ApiError(404, "Conversation not found");
   }
 
   // Get all documents
@@ -191,15 +185,10 @@ export const deleteDocument = asyncHandler(async (req, res) => {
   }
 
   // Find document
-  const document = await Document.findById(documentId).populate('conversation');
+  const document = await Document.findById(documentId);
 
   if (!document) {
     throw new ApiError(404, "Document not found");
-  }
-
-  // Verify user owns the conversation this document belongs to
-  if (document.conversation.userId.toString() !== req.user._id.toString()) {
-    throw new ApiError(403, "Access denied");
   }
 
   // Notify Python service to delete vectors (fire-and-forget)

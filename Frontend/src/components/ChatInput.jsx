@@ -1,70 +1,15 @@
 /**
  * Chat Input Component
- * Input field for sending messages and uploading files
+ * Handles text input, file selection, voice input, and file upload.
+ * Fully themed via CSS custom properties.
  */
 
-import { useState, useEffect } from 'react';
-import { Send, Paperclip, X, Mic, MicOff } from 'lucide-react';
+import { useState } from 'react';
+import { Send, Paperclip, X } from 'lucide-react';
+import { VoiceButton } from './VoiceInput';
 
-const ChatInput = ({ input, setInput, onSend, isLoading, onFileUpload }) => {
+const ChatInput = ({ input, setInput, onSend, isLoading, onFileUpload, onVoiceTranscript }) => {
   const [selectedFiles, setSelectedFiles] = useState([]);
-  const [isRecording, setIsRecording] = useState(false);
-  const [recognition, setRecognition] = useState(null);
-
-  // Initialize speech recognition
-  useEffect(() => {
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      const recognitionInstance = new SpeechRecognition();
-      recognitionInstance.continuous = true;
-      recognitionInstance.interimResults = true;
-      recognitionInstance.lang = 'en-US';
-
-      recognitionInstance.onresult = (event) => {
-        let interimTranscript = '';
-        let finalTranscript = '';
-
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            finalTranscript += transcript + ' ';
-          } else {
-            interimTranscript += transcript;
-          }
-        }
-
-        if (finalTranscript) {
-          setInput((prev) => prev + finalTranscript);
-        }
-      };
-
-      recognitionInstance.onerror = (event) => {
-        console.error('Speech recognition error:', event.error);
-        setIsRecording(false);
-      };
-
-      recognitionInstance.onend = () => {
-        setIsRecording(false);
-      };
-
-      setRecognition(recognitionInstance);
-    }
-  }, [setInput]);
-
-  const toggleRecording = () => {
-    if (!recognition) {
-      alert('Speech recognition is not supported in your browser');
-      return;
-    }
-
-    if (isRecording) {
-      recognition.stop();
-      setIsRecording(false);
-    } else {
-      recognition.start();
-      setIsRecording(true);
-    }
-  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -74,7 +19,6 @@ const ChatInput = ({ input, setInput, onSend, isLoading, onFileUpload }) => {
   };
 
   const handleKeyDown = (e) => {
-    // Send on Enter (without Shift)
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit(e);
@@ -99,90 +43,133 @@ const ChatInput = ({ input, setInput, onSend, isLoading, onFileUpload }) => {
 
   return (
     <div className="space-y-2">
-      {/* Selected Files */}
+      {/* ---- Selected Files Preview ---- */}
       {selectedFiles.length > 0 && (
-        <div className="flex flex-wrap gap-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+        <div
+          className="flex flex-wrap gap-2 p-2.5 rounded-xl border"
+          style={{
+            backgroundColor: 'var(--color-info-bg)',
+            borderColor: 'rgba(59,130,246,0.3)',
+          }}
+        >
           {selectedFiles.map((file, index) => (
             <div
               key={index}
-              className="flex items-center gap-2 px-3 py-1 bg-white rounded-lg text-sm shadow-sm border border-gray-200"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium shadow-sm border"
+              style={{
+                backgroundColor: 'var(--color-bg-surface)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-text-secondary)',
+              }}
             >
-              <span className="truncate max-w-[150px] text-gray-700">{file.name}</span>
+              <span className="truncate max-w-[120px]">{file.name}</span>
               <button
                 onClick={() => removeFile(index)}
-                className="hover:text-red-500 transition-colors text-gray-500"
+                className="flex-shrink-0 hover:text-red-500 transition-colors"
+                style={{ color: 'var(--color-text-muted)' }}
               >
-                <X className="w-4 h-4" />
+                <X className="w-3 h-3" />
               </button>
             </div>
           ))}
           <button
             onClick={handleFileUploadClick}
             disabled={isLoading}
-            className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+            className="btn-primary py-1 px-3 text-xs"
           >
             Upload {selectedFiles.length} file{selectedFiles.length > 1 ? 's' : ''}
           </button>
         </div>
       )}
 
-      {/* Input Form */}
-      <form onSubmit={handleSubmit} className="flex gap-2">
-        {/* File Upload Button */}
-        <label className="flex-shrink-0">
-          <input
-            type="file"
-            multiple
-            accept=".pdf,.xlsx,.xls,.csv"
-            onChange={handleFileSelect}
-            className="hidden"
-            disabled={isLoading}
-          />
-          <div
-            className={`
-              p-3 rounded-lg border cursor-pointer
-              transition-colors shadow-sm
-              ${
-                isLoading
-                  ? 'bg-gray-100 border-gray-200 cursor-not-allowed opacity-50'
-                  : 'bg-white border-gray-300 hover:bg-gray-50 hover:border-gray-400'
-              }
-            `}
-          >
-            <Paperclip className="w-5 h-5 text-gray-600" />
-          </div>
-        </label>
+      {/* ---- Input Row ---- */}
+      <form onSubmit={handleSubmit}>
+        <div
+          className="flex items-center gap-2 px-3 py-2 rounded-xl border-2 transition-all duration-150"
+          style={{
+            backgroundColor: 'var(--color-bg-input)',
+            borderColor: 'var(--color-border-input)',
+          }}
+          onFocusCapture={(e) => {
+            e.currentTarget.style.borderColor = 'var(--color-border-focus)';
+            e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.15)';
+          }}
+          onBlurCapture={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget)) {
+              e.currentTarget.style.borderColor = 'var(--color-border-input)';
+              e.currentTarget.style.boxShadow = 'none';
+            }
+          }}
+        >
+          {/* Voice Input */}
+          {onVoiceTranscript && (
+            <div className="flex-shrink-0">
+              <VoiceButton onTranscript={onVoiceTranscript} disabled={isLoading} />
+            </div>
+          )}
 
-        {/* Text Input */}
-        <div className="flex-1 relative">
-          <textarea
+          {/* File Attach */}
+          <label className="flex-shrink-0 cursor-pointer">
+            <input
+              type="file"
+              multiple
+              accept=".pdf,.xlsx,.xls,.csv"
+              onChange={handleFileSelect}
+              className="hidden"
+              disabled={isLoading}
+            />
+            <div
+              className={`p-1.5 rounded-lg transition-colors ${
+                isLoading ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
+              }`}
+              onMouseEnter={(e) => !isLoading && (e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)')}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+            >
+              <Paperclip className="w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
+            </div>
+          </label>
+
+          {/* Text Area */}
+          <input
+            type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask a question about your documents..."
+            placeholder="Ask a financial question or describe your document…"
             disabled={isLoading}
-            rows={1}
-            className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 placeholder-gray-400 shadow-sm"
+            className="flex-1 bg-transparent focus:outline-none disabled:opacity-50 text-sm sm:text-base"
             style={{
-              minHeight: '48px',
-              maxHeight: '120px',
+              color: 'var(--color-text-primary)',
             }}
           />
-        </div>
 
-        {/* Send Button */}
-        <button
-          type="submit"
-          disabled={isLoading || !input.trim()}
-          className="flex-shrink-0 p-3 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-        >
-          <Send className="w-5 h-5 text-white" />
-        </button>
+          {/* Send Button */}
+          <button
+            type="submit"
+            disabled={isLoading || !input.trim()}
+            className="flex-shrink-0 p-2 sm:p-2.5 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{
+              backgroundColor: isLoading || !input.trim() ? 'var(--color-bg-elevated)' : '#2563eb',
+            }}
+            onMouseEnter={(e) => {
+              if (!e.currentTarget.disabled) e.currentTarget.style.backgroundColor = '#1d4ed8';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor =
+                isLoading || !input.trim() ? 'var(--color-bg-elevated)' : '#2563eb';
+            }}
+          >
+            <Send
+              className="w-4 h-4 sm:w-5 sm:h-5"
+              style={{ color: isLoading || !input.trim() ? 'var(--color-text-muted)' : '#fff' }}
+            />
+          </button>
+        </div>
       </form>
 
-      {/* Helper Text */}
-      <p className="text-xs text-gray-500 text-center">
-        Press Enter to send, Shift+Enter for new line
+      {/* Helper text */}
+      <p className="text-xs text-center hidden sm:block" style={{ color: 'var(--color-text-muted)' }}>
+        Press <kbd className="px-1.5 py-0.5 rounded text-xs font-mono" style={{ backgroundColor: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)' }}>Enter</kbd> to send &nbsp;·&nbsp; <kbd className="px-1.5 py-0.5 rounded text-xs font-mono" style={{ backgroundColor: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)' }}>Shift+Enter</kbd> for new line
       </p>
     </div>
   );

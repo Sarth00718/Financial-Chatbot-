@@ -5,7 +5,7 @@ Handles storage and retrieval of document embeddings
 """
 
 import os
-import shutil
+import pickle
 from typing import List
 from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
@@ -21,11 +21,6 @@ class LocalVectorStore:
     def __init__(self):
         """Initialize the vector store manager"""
         self.vector_store_path = settings.VECTOR_STORE_PATH
-        
-        # Ensure vector store directory exists
-        os.makedirs(self.vector_store_path, exist_ok=True)
-        print(f"[OK] Vector store directory: {self.vector_store_path}")
-        
         self.embeddings = self._get_embeddings()
         
     def _get_embeddings(self) -> HuggingFaceEmbeddings:
@@ -33,16 +28,11 @@ class LocalVectorStore:
         Initialize HuggingFace embeddings model
         Uses a lightweight model that runs locally on CPU
         """
-        try:
-            embeddings = HuggingFaceEmbeddings(
-                model_name=settings.EMBEDDING_MODEL,
-                model_kwargs={'device': 'cpu'},
-                encode_kwargs={'normalize_embeddings': True}
-            )
-            print(f"[OK] Embeddings model loaded: {settings.EMBEDDING_MODEL}")
-            return embeddings
-        except Exception as e:
-            raise RuntimeError(f"Failed to load embeddings model: {e}")
+        return HuggingFaceEmbeddings(
+            model_name=settings.EMBEDDING_MODEL,
+            model_kwargs={'device': 'cpu'},
+            encode_kwargs={'normalize_embeddings': True}
+        )
     
     def _get_namespace_path(self, namespace: str) -> str:
         """
@@ -163,31 +153,21 @@ class LocalVectorStore:
         try:
             namespace_path = self._get_namespace_path(namespace)
             
-            # Check if directory exists
+            # FAISS creates multiple files, remove the directory
             if os.path.exists(namespace_path):
-                # Remove entire directory and all its contents
-                shutil.rmtree(namespace_path)
+                # Remove FAISS index file
+                os.remove(namespace_path)
+                
+                # Remove pickle file if exists
+                pkl_path = f"{namespace_path}.pkl"
+                if os.path.exists(pkl_path):
+                    os.remove(pkl_path)
+                
                 print(f"[OK] Vector store deleted: {namespace}")
                 return True
             else:
-                # Also check for legacy single-file format
-                legacy_file = f"{namespace_path}.faiss"
-                legacy_pkl = f"{namespace_path}.pkl"
-                
-                deleted = False
-                if os.path.exists(legacy_file):
-                    os.remove(legacy_file)
-                    deleted = True
-                if os.path.exists(legacy_pkl):
-                    os.remove(legacy_pkl)
-                    deleted = True
-                
-                if deleted:
-                    print(f"[OK] Legacy vector store files deleted: {namespace}")
-                    return True
-                else:
-                    print(f"[WARNING] Vector store not found: {namespace}")
-                    return False
+                print(f"[WARNING] Vector store not found: {namespace}")
+                return False
                 
         except Exception as e:
             print(f"[ERROR] Error deleting vector store {namespace}: {e}")

@@ -1,18 +1,28 @@
 /**
  * Analytics Routes
- * Handles analytics and statistics endpoints
+ * Handles user and admin analytics
  */
 
-import { Router } from "express";
-import { getAnalyticsStats } from "../controllers/analytics.controller.js";
-import { protect } from "../middlewares/auth.middleware.js";
+import express from "express";
+import { authenticate, authorize } from "../middlewares/auth.middleware.js";
+import {
+  getUserAnalytics,
+  getAdminAnalytics,
+  exportAnalytics,
+} from "../controllers/analytics.controller.js";
 
-const router = Router();
+const router = express.Router();
 
-// Apply authentication to all routes
-router.use(protect);
+// All routes require authentication
+router.use(authenticate);
 
-// Get analytics stats
-router.get("/stats", getAnalyticsStats);
+// User analytics (personal stats)
+router.get("/user", getUserAnalytics);
+
+// Admin analytics (system-wide stats)
+router.get("/admin", authorize("admin"), getAdminAnalytics);
+
+// Export analytics
+router.get("/export", exportAnalytics);
 
 export default router;

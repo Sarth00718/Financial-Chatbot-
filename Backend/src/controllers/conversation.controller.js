@@ -13,14 +13,13 @@ import mongoose from "mongoose";
 import axios from "axios";
 
 /**
- * Get all conversations for the authenticated user
+ * Get all conversations
  * GET /api/v1/conversations
  */
 export const getAllConversations = asyncHandler(async (req, res) => {
-  // Find only conversations belonging to the authenticated user
-  const conversations = await Conversation.find({ userId: req.user._id })
-    .select("title featureUsed createdAt updatedAt documents")
-    .populate("documents", "_id")
+  // Find all conversations for the authenticated user
+  const conversations = await Conversation.find({ user: req.user._id })
+    .select("title featureUsed createdAt updatedAt")
     .sort({ updatedAt: -1 }); // Most recent first
 
   return res
@@ -49,11 +48,11 @@ export const getConversationById = asyncHandler(async (req, res) => {
   // Find conversation and verify ownership
   const conversation = await Conversation.findOne({
     _id: conversationId,
-    userId: req.user._id
+    user: req.user._id,
   }).populate("documents", "fileName fileType status");
 
   if (!conversation) {
-    throw new ApiError(404, "Conversation not found or access denied");
+    throw new ApiError(404, "Conversation not found");
   }
 
   // Get all messages in this conversation
@@ -81,7 +80,7 @@ export const createConversation = asyncHandler(async (req, res) => {
 
   // Create new conversation for the authenticated user
   const conversation = await Conversation.create({
-    userId: req.user._id,
+    user: req.user._id,
     title: title || "New Chat",
     featureUsed: featureUsed || "Smart_Chat",
   });
@@ -113,11 +112,11 @@ export const sendChatMessage = asyncHandler(async (req, res) => {
   // Find conversation and verify ownership
   const conversation = await Conversation.findOne({
     _id: conversationId,
-    userId: req.user._id
+    user: req.user._id,
   }).populate("documents");
 
   if (!conversation) {
-    throw new ApiError(404, "Conversation not found or access denied");
+    throw new ApiError(404, "Conversation not found");
   }
 
   // Save user's message
@@ -207,11 +206,11 @@ export const deleteConversation = asyncHandler(async (req, res) => {
     // Find and delete conversation (verify ownership)
     const conversation = await Conversation.findOneAndDelete({
       _id: conversationId,
-      userId: req.user._id
+      user: req.user._id,
     }).session(session);
 
     if (!conversation) {
-      throw new ApiError(404, "Conversation not found or access denied");
+      throw new ApiError(404, "Conversation not found");
     }
 
     // Delete all messages in the conversation
@@ -255,8 +254,10 @@ export const deleteConversation = asyncHandler(async (req, res) => {
         new ApiResponse(200, {}, "Conversation deleted successfully")
       );
   } catch (error) {
-    // Rollback transaction on error
-    await session.abortTransaction();
+    // Rollback transaction on error (only if not already committed)
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
     throw new ApiError(
       500,
       error?.message || "Failed to delete conversation"
@@ -267,15 +268,90 @@ export const deleteConversation = asyncHandler(async (req, res) => {
 });
 
 /**
- * Update conversation title
+ * Search conversations by title or message content
+ * GET /api/v1/conversations/search?q=query&page=1&limit=20
+ */
+export const searchConversations = asyncHandler(async (req, res) => {
+  const { q: query, page = 1, limit = 20 } = req.query;
+
+  if (!query || query.trim() === "") {
+    throw new ApiError(400, "Search query is required");
+  }
+
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+
+  // Search in conversation titles
+  const titleMatches = await Conversation.find({
+    user: req.user._id,
+    title: { $regex: query, $options: "i" }, // Case-insensitive
+  })
+    .select("title featureUsed createdAt updatedAt")
+    .sort({ updatedAt: -1 })
+    .skip(skip)
+    .limit(parseInt(limit));
+
+  // Search in message content
+  const messageMatches = await Message.find({
+    content: { $regex: query, $options: "i" },
+  })
+    .select("conversation")
+    .lean();
+
+  const conversationIdsFromMessages = [
+    ...new Set(messageMatches.map((m) => m.conversation.toString())),
+  ];
+
+  const conversationsFromMessages = await Conversation.find({
+    _id: { $in: conversationIdsFromMessages },
+    user: req.user._id,
+  })
+    .select("title featureUsed createdAt updatedAt")
+    .sort({ updatedAt: -1 })
+    .skip(skip)
+    .limit(parseInt(limit));
+
+  // Combine and deduplicate results
+  const allConversations = [...titleMatches, ...conversationsFromMessages];
+  const uniqueConversations = Array.from(
+    new Map(allConversations.map((c) => [c._id.toString(), c])).values()
+  );
+
+  // Sort by updatedAt
+  uniqueConversations.sort((a, b) => b.updatedAt - a.updatedAt);
+
+  // Apply limit
+  const results = uniqueConversations.slice(0, parseInt(limit));
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        {
+          conversations: results,
+          total: uniqueConversations.length,
+          page: parseInt(page),
+          limit: parseInt(limit),
+        },
+        "Search completed successfully"
+      )
+    );
+});
+
+/**
+ * Update conversation title or feature mode
  * PATCH /api/v1/conversations/:conversationId
  */
 export const updateConversation = asyncHandler(async (req, res) => {
   const { conversationId } = req.params;
-  const { title } = req.body;
+  const { title, featureUsed } = req.body;
 
   // Validate input
-  if (!title || title.trim() === "") {
+  if (!title && !featureUsed) {
+    throw new ApiError(400, "Title or featureUsed must be provided");
+  }
+
+  if (title && title.trim() === "") {
     throw new ApiError(400, "Title cannot be empty");
   }
 
@@ -283,15 +359,20 @@ export const updateConversation = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid conversation ID");
   }
 
+  // Build update object
+  const updateData = {};
+  if (title) updateData.title = title.trim();
+  if (featureUsed) updateData.featureUsed = featureUsed;
+
   // Update conversation (verify ownership)
   const conversation = await Conversation.findOneAndUpdate(
-    { _id: conversationId, userId: req.user._id },
-    { title: title.trim() },
+    { _id: conversationId, user: req.user._id },
+    updateData,
     { new: true }
   );
 
   if (!conversation) {
-    throw new ApiError(404, "Conversation not found or access denied");
+    throw new ApiError(404, "Conversation not found");
   }
 
   return res

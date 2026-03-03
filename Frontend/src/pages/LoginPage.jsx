@@ -1,182 +1,174 @@
 /**
- * Login Page - Dark Theme
- * Professional authentication interface
+ * Login Page
+ * User authentication — fully themed, light/dark aware.
  */
 
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { Lock, Mail, Shield, Zap, Eye, EyeOff } from 'lucide-react';
-import logo from '../assets/logo.png';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { Bot, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import ThemeToggle from '../components/ThemeToggle';
 
 const LoginPage = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
-  const navigate = useNavigate();
+  const navigate  = useNavigate();
+  const { login, isAuthenticated } = useAuth();
+
+  const [formData, setFormData]     = useState({ email: '', password: '' });
+  const [showPassword, setShowPwd]  = useState(false);
+  const [loading, setLoading]       = useState(false);
+
+  useEffect(() => {
+    if (isAuthenticated) navigate('/');
+  }, [isAuthenticated, navigate]);
+
+  const handleChange = (e) =>
+    setFormData({ ...formData, [e.target.name]: e.target.value });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
     setLoading(true);
-
-    try {
-      await login(email, password);
-      navigate('/chat');
-    } catch (err) {
-      setError(err.response?.data?.message || 'Login failed. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+    const result = await login(formData);
+    if (result.success) navigate('/');
+    setLoading(false);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex">
-      {/* Left Side - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 via-purple-600/20 to-pink-600/20"></div>
-        <div className="absolute inset-0 backdrop-blur-3xl"></div>
-        
-        <div className="relative z-10 flex flex-col justify-center px-16 text-white">
-          <div className="flex items-center gap-4 mb-8">
-            <img src={logo} alt="FinChat AI Logo" className="w-16 h-16 object-contain drop-shadow-2xl" />
-            <h1 className="text-4xl font-bold">FinChat AI</h1>
-          </div>
-          
-          <h2 className="text-5xl font-bold mb-6 leading-tight">
-            Financial Intelligence<br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-400">
-              Powered by AI
-            </span>
-          </h2>
-          
-          <p className="text-xl text-slate-300 mb-12 leading-relaxed">
-            Advanced document analysis with OCR, multi-modal AI, and real-time insights for your financial data.
-          </p>
-
-          <div className="space-y-6">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-                <Shield className="w-6 h-6 text-blue-400" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-lg mb-1">Bank-Grade Security</h3>
-                <p className="text-slate-400">End-to-end encryption for all your financial documents</p>
-              </div>
-            </div>
-            
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center flex-shrink-0">
-                <Zap className="w-6 h-6 text-purple-400" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-lg mb-1">Lightning Fast Analysis</h3>
-                <p className="text-slate-400">OCR + Groq AI for instant document processing</p>
-              </div>
-            </div>
-          </div>
-        </div>
+    <div
+      className="min-h-screen flex flex-col items-center justify-center px-4 py-10 relative"
+      style={{ backgroundColor: 'var(--color-bg-page)', transition: 'background-color 0.25s ease' }}
+    >
+      {/* Theme toggle — top right */}
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
       </div>
 
-      {/* Right Side - Login Form */}
-      <div className="flex-1 flex items-center justify-center p-8">
-        <div className="w-full max-w-md">
-          {/* Mobile Logo */}
-          <div className="lg:hidden flex items-center gap-3 mb-8 justify-center">
-            <img src={logo} alt="FinChat AI Logo" className="w-14 h-14 object-contain drop-shadow-xl" />
-            <h1 className="text-3xl font-bold text-white">FinChat AI</h1>
+      <div className="w-full max-w-md">
+        {/* ---- Logo ---- */}
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center shadow-xl">
+            <Bot className="w-8 h-8 text-white" />
           </div>
-
-          <div className="bg-slate-900/50 backdrop-blur-xl rounded-3xl p-8 border border-slate-800 shadow-2xl">
-            <div className="mb-8">
-              <h2 className="text-3xl font-bold text-white mb-2">Welcome Back</h2>
-              <p className="text-slate-400">Sign in to access your financial dashboard</p>
-            </div>
-
-            {error && (
-              <div className="mb-6 p-4 bg-red-500/10 border border-red-500/50 rounded-xl text-red-400 text-sm">
-                {error}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Email Address
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3.5 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="you@example.com"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Password
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-12 pr-12 py-3.5 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="••••••••"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between text-sm">
-                <label className="flex items-center gap-2 text-slate-400 cursor-pointer">
-                  <input type="checkbox" className="w-4 h-4 rounded border-slate-700 bg-slate-800 text-blue-500 focus:ring-blue-500" />
-                  Remember me
-                </label>
-                <Link to="/forgot-password" className="text-blue-400 hover:text-blue-300 transition-colors">
-                  Forgot password?
-                </Link>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-500 hover:to-blue-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? 'Signing in...' : 'Sign In'}
-              </button>
-            </form>
-
-            <div className="mt-8 text-center">
-              <p className="text-slate-400">
-                Don't have an account?{' '}
-                <Link to="/register" className="text-blue-400 hover:text-blue-300 font-semibold transition-colors">
-                  Create Account
-                </Link>
-              </p>
-            </div>
-          </div>
-
-          <p className="text-center text-slate-500 text-sm mt-8">
-            Protected by enterprise-grade encryption
+          <h1 className="text-3xl font-bold mb-1.5" style={{ color: 'var(--color-text-primary)' }}>
+            Welcome Back
+          </h1>
+          <p style={{ color: 'var(--color-text-secondary)' }}>
+            Sign in to your FinChatBot account
           </p>
         </div>
+
+        {/* ---- Form card ---- */}
+        <div className="card p-8">
+          <form onSubmit={handleSubmit} className="space-y-5">
+
+            {/* Email */}
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium mb-1.5" style={{ color: 'var(--color-text-secondary)' }}>
+                Email Address
+              </label>
+              <div className="relative">
+                <Mail
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-4.5 h-4.5"
+                  style={{ color: 'var(--color-text-muted)', width: '1.1rem', height: '1.1rem' }}
+                />
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  required
+                  className="input-field pl-10"
+                  placeholder="you@example.com"
+                />
+              </div>
+            </div>
+
+            {/* Password */}
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium mb-1.5" style={{ color: 'var(--color-text-secondary)' }}>
+                Password
+              </label>
+              <div className="relative">
+                <Lock
+                  className="absolute left-3 top-1/2 -translate-y-1/2"
+                  style={{ color: 'var(--color-text-muted)', width: '1.1rem', height: '1.1rem' }}
+                />
+                <input
+                  id="password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  required
+                  className="input-field pl-10 pr-11"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPwd(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 icon-btn p-0"
+                  aria-label="Toggle password visibility"
+                >
+                  {showPassword
+                    ? <EyeOff style={{ width: '1.1rem', height: '1.1rem' }} />
+                    : <Eye  style={{ width: '1.1rem', height: '1.1rem' }} />}
+                </button>
+              </div>
+            </div>
+
+            {/* Remember + Forgot */}
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  id="remember"
+                  type="checkbox"
+                  className="w-4 h-4 rounded accent-blue-600"
+                  style={{ borderColor: 'var(--color-border-input)' }}
+                />
+                <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                  Remember me
+                </span>
+              </label>
+              <Link
+                to="/forgot-password"
+                className="text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors"
+              >
+                Forgot password?
+              </Link>
+            </div>
+
+            {/* Submit */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn-primary w-full py-3 text-base mt-2"
+            >
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Signing in…
+                </span>
+              ) : (
+                'Sign In'
+              )}
+            </button>
+          </form>
+
+          {/* Register link */}
+          <p className="mt-6 text-center text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+            Don't have an account?{' '}
+            <Link to="/register" className="font-semibold text-blue-600 hover:text-blue-700 transition-colors">
+              Sign up
+            </Link>
+          </p>
+        </div>
+
+        {/* Footer */}
+        <p className="text-center text-xs mt-8" style={{ color: 'var(--color-text-muted)' }}>
+          © {new Date().getFullYear()} FinChatBot. All rights reserved.
+        </p>
       </div>
     </div>
   );

@@ -1,11 +1,13 @@
 /**
  * Sidebar Component
- * Shows list of conversations and navigation
+ * Conversation list with search — full light/dark mode support.
  */
 
-import { useState } from 'react';
-import { Plus, MessageSquare, Trash2, X, Edit2, Check, Search, FileText } from 'lucide-react';
-import logo from '../assets/logo.png';
+import { useState, useEffect, useCallback } from 'react';
+import { Plus, MessageSquare, Trash2, X, Search, Bot, Edit2, Check } from 'lucide-react';
+import { conversationAPI } from '../utils/api';
+import ThemeToggle from './ThemeToggle';
+import toast from 'react-hot-toast';
 
 const Sidebar = ({
   conversations,
@@ -17,139 +19,233 @@ const Sidebar = ({
   isOpen,
   onClose,
 }) => {
-  const [editingId, setEditingId] = useState(null);
-  const [editingTitle, setEditingTitle] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState('');
+  const [editingId, setEditingId] = useState(null);
+  const [editTitle, setEditTitle] = useState('');
+
+  // Debounced search function
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      setSearchError('');
+      return;
+    }
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        setIsSearching(true);
+        setSearchError('');
+        const response = await conversationAPI.search(searchQuery);
+        setSearchResults(response.data.data.conversations);
+      } catch (error) {
+        console.error('Search failed:', error);
+        setSearchError('Search failed. Please try again.');
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 400); // 400ms debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
+
+  // Determine which conversations to display
+  const displayedConversations = searchQuery.trim() 
+    ? searchResults 
+    : conversations;
 
   const handleStartEdit = (conv, e) => {
     e.stopPropagation();
     setEditingId(conv._id);
-    setEditingTitle(conv.title);
+    setEditTitle(conv.title);
   };
 
   const handleSaveEdit = async (convId, e) => {
-    e.stopPropagation();
-    if (editingTitle.trim() && editingTitle !== conversations.find(c => c._id === convId)?.title) {
-      await onRenameChat(convId, editingTitle.trim());
+    e?.stopPropagation();
+    if (!editTitle.trim() || editTitle === conversations.find(c => c._id === convId)?.title) {
+      setEditingId(null);
+      return;
     }
-    setEditingId(null);
-    setEditingTitle('');
+
+    try {
+      await conversationAPI.update(convId, { title: editTitle.trim() });
+      if (onRenameChat) {
+        onRenameChat(convId, editTitle.trim());
+      }
+      setEditingId(null);
+      toast.success('Chat renamed');
+    } catch (error) {
+      console.error('Failed to rename chat:', error);
+      toast.error('Failed to rename chat');
+    }
   };
 
   const handleCancelEdit = (e) => {
-    e.stopPropagation();
+    e?.stopPropagation();
     setEditingId(null);
-    setEditingTitle('');
+    setEditTitle('');
   };
-
-  const handleKeyDown = (e, convId) => {
-    if (e.key === 'Enter') {
-      handleSaveEdit(convId, e);
-    } else if (e.key === 'Escape') {
-      handleCancelEdit(e);
-    }
-  };
-
-  // Filter conversations based on search query
-  const filteredConversations = searchQuery
-    ? conversations.filter((conv) =>
-        conv.title.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : conversations;
 
   return (
     <>
-      {/* Sidebar */}
+      {/* ---- Sidebar Panel ---- */}
       <div
         className={`
-          fixed md:relative z-30 h-full w-full sm:w-80 md:w-80 lg:w-96 bg-white/95 backdrop-blur-xl border-r border-gray-200/50
+          fixed md:relative z-30 h-full w-72 sm:w-80 flex flex-col
+          sidebar-bg
           transform transition-all duration-300 ease-in-out shadow-2xl md:shadow-none
           ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
         `}
+        style={{ minHeight: '100vh' }}
       >
-        <div className="flex flex-col h-full">
-          {/* Header */}
-          <div className="p-4 sm:p-5 md:p-6 border-b border-gray-200/50 bg-gradient-to-br from-white to-blue-50/30">
-            <div className="flex items-center justify-between mb-4 sm:mb-6">
-              <div className="flex items-center gap-3">
-                <img src={logo} alt="FinChat AI Logo" className="w-10 h-10 sm:w-12 sm:h-12 object-contain drop-shadow-lg" />
-                <h2 className="text-lg sm:text-xl font-bold gradient-text">
-                  FinChatBot
-                </h2>
+        {/* ---- Header ---- */}
+        <div className="p-4 sm:p-5 border-b" style={{ borderColor: 'var(--color-border)' }}>
+          {/* Brand Row */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center shadow-lg flex-shrink-0">
+                <Bot className="w-5 h-5 text-white" />
               </div>
+              <div>
+                <h2 className="text-base font-bold gradient-text">FinChatBot</h2>
+                <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Financial AI</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1">
+              {/* Theme toggle lives here on all screen sizes */}
+              <ThemeToggle />
+              {/* Close button — mobile only */}
               <button
                 onClick={onClose}
-                className="md:hidden p-2 hover:bg-gray-100 rounded-xl transition-colors"
+                className="md:hidden icon-btn"
+                aria-label="Close sidebar"
               >
-                <X className="w-5 h-5 text-gray-600" />
+                <X className="w-4 h-4" />
               </button>
             </div>
-
-            {/* New Chat Button */}
-            <button
-              onClick={onNewChat}
-              className="w-full flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 sm:py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl transition-all duration-200 shadow-md hover:shadow-lg font-semibold transform hover:-translate-y-0.5 active:scale-95 text-sm sm:text-base"
-            >
-              <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-              <span>New Conversation</span>
-            </button>
           </div>
 
-          {/* Search Bar */}
-          <div className="px-3 sm:px-4 py-3 border-b border-gray-200/50">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search conversations..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-              />
-            </div>
-          </div>
+          {/* New Chat Button */}
+          <button
+            onClick={onNewChat}
+            className="btn-primary w-full gap-2 py-2.5"
+          >
+            <Plus className="w-4 h-4" />
+            <span>New Conversation</span>
+          </button>
+        </div>
 
-          {/* Conversations List */}
-          <div className="flex-1 overflow-y-auto scrollbar-thin p-3 sm:p-4">
-            {filteredConversations.length === 0 ? (
-              <div className="text-center text-gray-400 mt-12">
-                <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-                  <MessageSquare className="w-10 h-10 text-gray-300" />
-                </div>
-                <p className="text-sm text-gray-500 font-medium">No conversations yet</p>
-                <p className="text-xs text-gray-400 mt-1">Start a new chat to begin</p>
+        {/* ---- Search ---- */}
+        <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--color-border)' }}>
+          <div className="relative">
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
+              style={{ color: 'var(--color-text-muted)' }}
+            />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search conversations…"
+              className="w-full pl-9 pr-9 py-2 text-sm rounded-lg border transition-all"
+              style={{
+                backgroundColor: 'var(--color-bg-elevated)',
+                borderColor: 'var(--color-border-input)',
+                color: 'var(--color-text-primary)',
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = 'var(--color-border-focus)';
+                e.target.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.15)';
+                e.target.style.outline = 'none';
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = 'var(--color-border-input)';
+                e.target.style.boxShadow = 'none';
+              }}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 icon-btn p-1"
+                title="Clear search"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+          {isSearching && (
+            <p className="text-xs mt-2 text-center" style={{ color: 'var(--color-text-muted)' }}>
+              Searching...
+            </p>
+          )}
+          {searchError && (
+            <p className="text-xs mt-2 text-center text-red-500">
+              {searchError}
+            </p>
+          )}
+        </div>
+
+        {/* ---- Conversation List ---- */}
+        <div className="flex-1 overflow-y-auto scrollbar-thin p-3">
+          {displayedConversations.length === 0 ? (
+            <div className="text-center mt-12 px-4">
+              <div
+                className="w-16 h-16 mx-auto mb-3 rounded-2xl flex items-center justify-center"
+                style={{ backgroundColor: 'var(--color-bg-elevated)' }}
+              >
+                {searchQuery ? (
+                  <Search className="w-8 h-8" style={{ color: 'var(--color-text-muted)' }} />
+                ) : (
+                  <MessageSquare className="w-8 h-8" style={{ color: 'var(--color-text-muted)' }} />
+                )}
               </div>
-            ) : (
-              <div className="space-y-2">
-                {filteredConversations.map((conv) => (
+              <p className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+                {searchQuery ? 'No results found' : 'No conversations yet'}
+              </p>
+              <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                {searchQuery ? 'Try a different term' : 'Start a new chat above'}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {displayedConversations.map((conv) => {
+                const isActive = currentConversationId === conv._id;
+                return (
                   <div
                     key={conv._id}
-                    className={`
-                      group flex items-center gap-3 p-4 rounded-xl cursor-pointer
-                      transition-all duration-200
-                      ${
-                        currentConversationId === conv._id
-                          ? 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-900 border-2 border-blue-200 shadow-md'
-                          : 'hover:bg-gray-50 text-gray-700 border-2 border-transparent hover:border-gray-200'
-                      }
-                    `}
+                    className={`group flex items-center gap-2.5 p-3 rounded-xl cursor-pointer transition-all duration-150 border-2 ${
+                      isActive
+                        ? 'border-blue-500/40 shadow-sm'
+                        : 'border-transparent'
+                    }`}
+                    style={{
+                      backgroundColor: isActive ? 'var(--color-primary-light)' : 'transparent',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isActive) e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive) e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
                   >
-                    <div className="relative">
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                        currentConversationId === conv._id 
-                          ? 'bg-gradient-to-br from-blue-600 to-blue-700' 
-                          : 'bg-gray-100 group-hover:bg-gray-200'
-                      }`}>
-                        <MessageSquare className={`w-5 h-5 ${
-                          currentConversationId === conv._id ? 'text-white' : 'text-gray-600'
-                        }`} />
-                      </div>
-                      {conv.documents && conv.documents.length > 0 && (
-                        <div className="absolute -top-1 -right-1 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center shadow-lg">
-                          <span className="text-xs font-bold text-white">{conv.documents.length}</span>
-                        </div>
-                      )}
+                    {/* Icon */}
+                    <div
+                      className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${
+                        isActive ? 'bg-blue-600' : ''
+                      }`}
+                      style={!isActive ? { backgroundColor: 'var(--color-bg-elevated)' } : {}}
+                    >
+                      <MessageSquare
+                        className={`w-4 h-4 ${isActive ? 'text-white' : ''}`}
+                        style={!isActive ? { color: 'var(--color-text-muted)' } : {}}
+                      />
                     </div>
+
+                    {/* Info */}
                     <div
                       onClick={() => editingId !== conv._id && onSelectChat(conv._id)}
                       className="flex-1 min-w-0"
@@ -157,87 +253,107 @@ const Sidebar = ({
                       {editingId === conv._id ? (
                         <input
                           type="text"
-                          value={editingTitle}
-                          onChange={(e) => setEditingTitle(e.target.value)}
-                          onKeyDown={(e) => handleKeyDown(e, conv._id)}
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.target.value)}
                           onClick={(e) => e.stopPropagation()}
-                          className="w-full text-sm font-semibold bg-white border-2 border-blue-500 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleSaveEdit(conv._id);
+                            } else if (e.key === 'Escape') {
+                              handleCancelEdit();
+                            }
+                          }}
+                          className="w-full px-2 py-1 text-sm rounded border"
+                          style={{
+                            backgroundColor: 'var(--color-bg-input)',
+                            borderColor: 'var(--color-border-focus)',
+                            color: 'var(--color-text-primary)',
+                          }}
                           autoFocus
                         />
                       ) : (
-                        <p className="text-sm truncate font-semibold">{conv.title}</p>
+                        <>
+                          <p
+                            className="text-sm font-semibold truncate"
+                            style={{ color: isActive ? 'var(--color-primary-text)' : 'var(--color-text-primary)' }}
+                          >
+                            {conv.title}
+                          </p>
+                          <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--color-text-muted)' }}>
+                            {new Date(conv.updatedAt).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </p>
+                        </>
                       )}
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        {new Date(conv.updatedAt).toLocaleDateString('en-US', { 
-                          month: 'short', 
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </p>
                     </div>
-                    <div className="flex items-center gap-1">
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       {editingId === conv._id ? (
                         <>
                           <button
                             onClick={(e) => handleSaveEdit(conv._id, e)}
-                            className="p-2 hover:bg-green-50 rounded-lg transition-all duration-200"
+                            className="icon-btn p-1.5 text-green-600 hover:bg-green-50"
                             title="Save"
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(34,197,94,0.12)'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                           >
-                            <Check className="w-4 h-4 text-green-600" />
+                            <Check className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={handleCancelEdit}
-                            className="p-2 hover:bg-gray-100 rounded-lg transition-all duration-200"
+                            className="icon-btn p-1.5"
                             title="Cancel"
                           >
-                            <X className="w-4 h-4 text-gray-600" />
+                            <X className="w-3.5 h-3.5" />
                           </button>
                         </>
                       ) : (
                         <>
                           <button
                             onClick={(e) => handleStartEdit(conv, e)}
-                            className="opacity-0 group-hover:opacity-100 p-2 hover:bg-blue-50 rounded-lg transition-all duration-200"
+                            className="icon-btn p-1.5"
                             title="Rename conversation"
                           >
-                            <Edit2 className="w-4 h-4 text-blue-600" />
+                            <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               onDeleteChat(conv._id);
                             }}
-                            className="opacity-0 group-hover:opacity-100 p-2 hover:bg-red-50 rounded-lg transition-all duration-200"
+                            className="icon-btn p-1.5 text-red-500 hover:bg-red-50"
                             title="Delete conversation"
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.12)'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                           >
-                            <Trash2 className="w-4 h-4 text-red-500" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </>
                       )}
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Footer */}
-          <div className="p-4 sm:p-5 md:p-6 border-t border-gray-200/50 bg-gradient-to-br from-gray-50 to-white">
-            <div className="text-center">
-              <p className="text-xs sm:text-sm font-bold bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">
-                FinChatBot v2.0
-              </p>
-              <p className="text-xs text-gray-500 mt-1">Financial AI Assistant</p>
+                );
+              })}
             </div>
-          </div>
+          )}
+        </div>
+
+        {/* ---- Footer ---- */}
+        <div className="p-4 border-t text-center" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-elevated)' }}>
+          <p className="text-xs font-bold gradient-text">FinChatBot v2.0</p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>Powered by Groq AI</p>
         </div>
       </div>
 
-      {/* Mobile Overlay */}
+      {/* Mobile Backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-20 md:hidden"
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-20 md:hidden"
           onClick={onClose}
         />
       )}

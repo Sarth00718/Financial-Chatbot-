@@ -6,7 +6,6 @@
 
 import multer from "multer";
 import path from "path";
-import { fileURLToPath } from "url";
 import { UPLOADS_DIR, ensureUploadsDirectory } from "../utils/fileStorage.js";
 import { MAX_FILE_SIZE, ALLOWED_FILE_TYPES } from "../config/constants.js";
 

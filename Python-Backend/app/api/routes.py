@@ -20,13 +20,8 @@ import os
 # Create API router
 router = APIRouter()
 
-
 @router.get("/health", response_model=HealthResponse)
 async def health_check():
-    """
-    Health check endpoint
-    Verifies the service is running
-    """
     return HealthResponse(
         status="healthy",
         message="FinChatBot Python AI Service is running"
@@ -38,16 +33,7 @@ async def process_document(
     request: ProcessDocumentRequest,
     background_tasks: BackgroundTasks
 ):
-    """
-    Process a document endpoint
-    Receives document info from Node.js backend and starts processing
     
-    Processing happens in background:
-    1. Extract text and images from PDF
-    2. Generate embeddings
-    3. Store in local vector database (FAISS)
-    4. Notify Node.js backend when complete
-    """
     try:
         print(f"\n[REQUEST] Received document processing request")
         print(f"Document ID: {request.documentId}")
@@ -121,9 +107,11 @@ async def query_documents(request: QueryRequest):
         raise
     except Exception as e:
         print(f"[ERROR] Error processing query: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=500,
-            detail="An error occurred while processing your question"
+            detail=f"Error: {str(e)}"  # Show actual error for debugging
         )
 
 
@@ -167,7 +155,7 @@ async def delete_document(request: DeleteDocumentRequest):
 
 
 @router.post("/delete-documents")
-async def delete_multiple_documents(documents: list):
+async def delete_multiple_documents(request: dict):
     """
     Delete multiple documents endpoint
     Batch deletion for conversation cleanup
@@ -175,6 +163,7 @@ async def delete_multiple_documents(documents: list):
     Called by Node.js backend when a conversation is deleted
     """
     try:
+        documents = request.get("documents", [])
         print(f"\n[DELETE] Received batch deletion request for {len(documents)} documents")
         
         results = []
@@ -218,3 +207,4 @@ async def delete_multiple_documents(documents: list):
             status_code=500,
             detail=f"Failed to delete documents: {str(e)}"
         )
+

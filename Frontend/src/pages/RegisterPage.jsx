@@ -1,198 +1,223 @@
 /**
- * Register Page - Dark Theme
- * Professional sign-up interface
+ * Register Page
+ * User registration — fully themed, light/dark aware.
  */
 
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { Lock, Mail, User, Eye, EyeOff, Check } from 'lucide-react';
-import logo from '../assets/logo.png';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { Bot, Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
+import ThemeToggle from '../components/ThemeToggle';
 
 const RegisterPage = () => {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const { register } = useAuth();
   const navigate = useNavigate();
+  const { register, isAuthenticated } = useAuth();
 
-  const passwordRequirements = [
-    { label: 'At least 8 characters', met: password.length >= 8 },
-    { label: 'Contains uppercase letter', met: /[A-Z]/.test(password) },
-    { label: 'Contains number', met: /\d/.test(password) },
-  ];
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+  });
+  const [showPassword, setShowPwd]        = useState(false);
+  const [showConfirmPwd, setShowConfirmPwd] = useState(false);
+  const [loading, setLoading]             = useState(false);
+
+  useEffect(() => {
+    if (isAuthenticated) navigate('/');
+  }, [isAuthenticated, navigate]);
+
+  const handleChange = (e) =>
+    setFormData({ ...formData, [e.target.name]: e.target.value });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-
-    if (!passwordRequirements.every(req => req.met)) {
-      setError('Password does not meet requirements');
-      return;
-    }
-
     setLoading(true);
-
-    try {
-      await register(name, email, password);
-      navigate('/chat');
-    } catch (err) {
-      setError(err.response?.data?.message || 'Registration failed. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+    const result = await register(formData);
+    if (result.success) navigate('/');
+    setLoading(false);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-8">
+    <div
+      className="min-h-screen flex flex-col items-center justify-center px-4 py-10 relative"
+      style={{ backgroundColor: 'var(--color-bg-page)', transition: 'background-color 0.25s ease' }}
+    >
+      {/* Theme toggle */}
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
+
       <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="flex items-center gap-3 mb-8 justify-center">
-          <img src={logo} alt="FinChat AI Logo" className="w-14 h-14 object-contain drop-shadow-xl" />
-          <h1 className="text-3xl font-bold text-white">FinChat AI</h1>
+        {/* ---- Logo ---- */}
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center shadow-xl">
+            <Bot className="w-8 h-8 text-white" />
+          </div>
+          <h1 className="text-3xl font-bold mb-1.5" style={{ color: 'var(--color-text-primary)' }}>
+            Create Account
+          </h1>
+          <p style={{ color: 'var(--color-text-secondary)' }}>
+            Join FinChatBot and start analyzing
+          </p>
         </div>
 
-        <div className="bg-slate-900/50 backdrop-blur-xl rounded-3xl p-8 border border-slate-800 shadow-2xl">
-          <div className="mb-8">
-            <h2 className="text-3xl font-bold text-white mb-2">Create Account</h2>
-            <p className="text-slate-400">Start analyzing your financial documents with AI</p>
-          </div>
+        {/* ---- Form card ---- */}
+        <div className="card p-8">
+          <form onSubmit={handleSubmit} className="space-y-4">
 
-          {error && (
-            <div className="mb-6 p-4 bg-red-500/10 border border-red-500/50 rounded-xl text-red-400 text-sm">
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Name */}
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
+              <label htmlFor="name" className="block text-sm font-medium mb-1.5" style={{ color: 'var(--color-text-secondary)' }}>
                 Full Name
               </label>
               <div className="relative">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                <User className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-text-muted)', width: '1.1rem', height: '1.1rem' }} />
                 <input
+                  id="name"
+                  name="name"
                   type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3.5 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  placeholder="John Doe"
+                  autoComplete="name"
+                  value={formData.name}
+                  onChange={handleChange}
                   required
+                  minLength={2}
+                  className="input-field pl-10"
+                  placeholder="John Doe"
                 />
               </div>
             </div>
 
+            {/* Email */}
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
+              <label htmlFor="email" className="block text-sm font-medium mb-1.5" style={{ color: 'var(--color-text-secondary)' }}>
                 Email Address
               </label>
               <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-text-muted)', width: '1.1rem', height: '1.1rem' }} />
                 <input
+                  id="email"
+                  name="email"
                   type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3.5 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  placeholder="you@example.com"
+                  autoComplete="email"
+                  value={formData.email}
+                  onChange={handleChange}
                   required
+                  className="input-field pl-10"
+                  placeholder="you@example.com"
                 />
               </div>
             </div>
 
+            {/* Password */}
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
+              <label htmlFor="password" className="block text-sm font-medium mb-1.5" style={{ color: 'var(--color-text-secondary)' }}>
                 Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-text-muted)', width: '1.1rem', height: '1.1rem' }} />
                 <input
+                  id="password"
+                  name="password"
                   type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-12 pr-12 py-3.5 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  placeholder="••••••••"
+                  autoComplete="new-password"
+                  value={formData.password}
+                  onChange={handleChange}
                   required
+                  minLength={6}
+                  className="input-field pl-10 pr-11"
+                  placeholder="••••••••"
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                  onClick={() => setShowPwd(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 icon-btn p-0"
                 >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  {showPassword ? <EyeOff style={{ width: '1.1rem', height: '1.1rem' }} /> : <Eye style={{ width: '1.1rem', height: '1.1rem' }} />}
                 </button>
               </div>
-              
-              {password && (
-                <div className="mt-3 space-y-2">
-                  {passwordRequirements.map((req, idx) => (
-                    <div key={idx} className="flex items-center gap-2 text-xs">
-                      <div className={`w-4 h-4 rounded-full flex items-center justify-center ${req.met ? 'bg-green-500/20' : 'bg-slate-700'}`}>
-                        {req.met && <Check className="w-3 h-3 text-green-400" />}
-                      </div>
-                      <span className={req.met ? 'text-green-400' : 'text-slate-500'}>{req.label}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <p className="mt-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                At least 6 characters with uppercase, lowercase, and number
+              </p>
             </div>
 
+            {/* Confirm Password */}
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
+              <label htmlFor="confirmPassword" className="block text-sm font-medium mb-1.5" style={{ color: 'var(--color-text-secondary)' }}>
                 Confirm Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-text-muted)', width: '1.1rem', height: '1.1rem' }} />
                 <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3.5 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  placeholder="••••••••"
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type={showConfirmPwd ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
                   required
+                  className="input-field pl-10 pr-11"
+                  placeholder="••••••••"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPwd(!showConfirmPwd)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 icon-btn p-0"
+                >
+                  {showConfirmPwd ? <EyeOff style={{ width: '1.1rem', height: '1.1rem' }} /> : <Eye style={{ width: '1.1rem', height: '1.1rem' }} />}
+                </button>
               </div>
             </div>
 
-            <label className="flex items-start gap-3 text-sm text-slate-400 cursor-pointer">
-              <input type="checkbox" className="w-4 h-4 mt-0.5 rounded border-slate-700 bg-slate-800 text-blue-500 focus:ring-blue-500" required />
-              <span>
+            {/* Terms */}
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                id="terms"
+                type="checkbox"
+                required
+                className="w-4 h-4 mt-0.5 rounded accent-blue-600"
+              />
+              <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                 I agree to the{' '}
-                <Link to="/terms" className="text-blue-400 hover:text-blue-300">Terms of Service</Link>
-                {' '}and{' '}
-                <Link to="/privacy" className="text-blue-400 hover:text-blue-300">Privacy Policy</Link>
+                <a href="#" className="font-medium text-blue-600 hover:text-blue-700 transition-colors">
+                  Terms of Service
+                </a>{' '}
+                and{' '}
+                <a href="#" className="font-medium text-blue-600 hover:text-blue-700 transition-colors">
+                  Privacy Policy
+                </a>
               </span>
             </label>
 
+            {/* Submit */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-500 hover:to-blue-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-primary w-full py-3 text-base mt-1"
             >
-              {loading ? 'Creating Account...' : 'Create Account'}
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Creating account…
+                </span>
+              ) : (
+                'Create Account'
+              )}
             </button>
           </form>
 
-          <div className="mt-8 text-center">
-            <p className="text-slate-400">
-              Already have an account?{' '}
-              <Link to="/login" className="text-blue-400 hover:text-blue-300 font-semibold transition-colors">
-                Sign In
-              </Link>
-            </p>
-          </div>
+          {/* Login link */}
+          <p className="mt-6 text-center text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+            Already have an account?{' '}
+            <Link to="/login" className="font-semibold text-blue-600 hover:text-blue-700 transition-colors">
+              Sign in
+            </Link>
+          </p>
         </div>
 
-        <p className="text-center text-slate-500 text-sm mt-8">
-          Your data is encrypted and secure
+        {/* Footer */}
+        <p className="text-center text-xs mt-8" style={{ color: 'var(--color-text-muted)' }}>
+          © {new Date().getFullYear()} FinChatBot. All rights reserved.
         </p>
       </div>
     </div>

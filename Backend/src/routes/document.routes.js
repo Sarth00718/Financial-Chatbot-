@@ -1,8 +1,3 @@
-/**
- * Document Routes
- * Handles document upload and management
- */
-
 import { Router } from "express";
 import {
   uploadDocuments,
@@ -11,19 +6,21 @@ import {
   deleteDocument,
 } from "../controllers/document.controller.js";
 import { upload } from "../middlewares/upload.middleware.js";
-import { protect } from "../middlewares/auth.middleware.js";
+import { authenticate } from "../middlewares/auth.middleware.js";
+import { uploadLimiter } from "../middlewares/rateLimiter.middleware.js";
 
 const router = Router();
 
-// Webhook for Python service to update document status (no auth needed)
+// Webhook for Python service to update document status (no auth required)
 router.patch("/:documentId/status", updateDocumentStatus);
 
-// Apply authentication to all other routes
-router.use(protect);
+// All other routes require authentication
+router.use(authenticate);
 
-// Upload documents
+// Upload documents with rate limiting
 router.post(
   "/upload",
+  uploadLimiter,
   upload.array("documents", 10), // Max 10 files
   uploadDocuments
 );
@@ -36,8 +33,5 @@ router.get(
 
 // Delete a document
 router.delete("/:documentId", deleteDocument);
-
-// Webhook for Python service to update document status
-router.patch("/:documentId/status", updateDocumentStatus);
 
 export default router;

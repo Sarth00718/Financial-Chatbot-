@@ -1,269 +1,269 @@
 /**
  * Chat Page
- * Main chat interface with conversations and messages
+ * Main chat interface — conversations, messages, feature selector.
+ * Fully themed via CSS custom properties.
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { Menu, Download, Share2, Bot, FileText, BarChart3 } from 'lucide-react';
+import { Menu, Share2, Bot, LogOut, User, Shield, BarChart3 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { conversationAPI, documentAPI } from '../utils/api';
+import { useAuth } from '../contexts/AuthContext';
 import Sidebar from '../components/Sidebar';
 import Message from '../components/Message';
 import ChatInput from '../components/ChatInput';
-import DocumentPreview from '../components/DocumentPreview';
-import { useNavigate } from 'react-router-dom';
+import FeatureSelector from '../components/FeatureSelector';
+import { VoiceButton } from '../components/VoiceInput';
+import ExportReports from '../components/ExportReports';
+import SmartSuggestions from '../components/SmartSuggestions';
 
 const ChatPage = () => {
-  // State
+  const navigate = useNavigate();
+  const { user, logout, isAdmin } = useAuth();
+
+  // ---- State ----
   const [conversations, setConversations] = useState([]);
   const [currentConversationId, setCurrentConversationId] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
+  const [currentConversation, setCurrentConversation]   = useState(null);
+  const [messages, setMessages]   = useState([]);
+  const [input, setInput]         = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 768);
-  const [isDocumentPreviewOpen, setIsDocumentPreviewOpen] = useState(false);
-  
+  const [selectedFeature, setSelectedFeature] = useState('Smart_Chat');
+  const [showUserMenu, setShowUserMenu] = useState(false);
+
   const messagesEndRef = useRef(null);
-  const navigate = useNavigate();
+  const userMenuRef    = useRef(null);
 
-  // Fetch conversations on mount
-  useEffect(() => {
-    fetchConversations();
-  }, []);
+  // ---- Side effects ----
+  useEffect(() => { fetchConversations(); }, []);
 
-  // Fetch messages when conversation changes
   useEffect(() => {
-    if (currentConversationId) {
-      fetchMessages();
-    }
+    if (currentConversationId) fetchMessages();
   }, [currentConversationId]);
 
-  // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Handle window resize
   useEffect(() => {
-    const handleResize = () => {
-      setIsSidebarOpen(window.innerWidth >= 768);
-    };
+    const handleResize = () => setIsSidebarOpen(window.innerWidth >= 768);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  /**
-   * Fetch all conversations
-   */
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setShowUserMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // ---- Handlers ----
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
+
   const fetchConversations = async () => {
     try {
       const response = await conversationAPI.getAll();
-      const convos = response.data.data;
+      const convos   = response.data.data;
       setConversations(convos);
-
-      // Select first conversation or create new one
       if (convos.length > 0) {
         setCurrentConversationId(convos[0]._id);
       } else {
         await handleNewChat();
       }
-    } catch (error) {
-      console.error('Failed to fetch conversations:', error);
+    } catch (err) {
+      console.error('Failed to fetch conversations:', err);
     }
   };
 
-  /**
-   * Fetch messages for current conversation
-   */
   const fetchMessages = async () => {
     if (!currentConversationId) return;
-
     try {
       setIsLoading(true);
       const response = await conversationAPI.getById(currentConversationId);
       setMessages(response.data.data.messages);
-    } catch (error) {
-      console.error('Failed to fetch messages:', error);
-      setMessages([
-        {
-          _id: 'error',
-          role: 'system',
-          content: 'Failed to load messages.',
-        },
-      ]);
+      setCurrentConversation(response.data.data.conversation);
+    } catch (err) {
+      console.error('Failed to fetch messages:', err);
+      setMessages([{ _id: 'error', role: 'system', content: 'Failed to load messages.' }]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  /**
-   * Create new conversation
-   */
   const handleNewChat = async () => {
     try {
-      const response = await conversationAPI.create({ title: 'New Chat' });
+      const response = await conversationAPI.create({ title: 'New Chat', featureUsed: selectedFeature });
       const newConvo = response.data.data;
       setConversations((prev) => [newConvo, ...prev]);
       setCurrentConversationId(newConvo._id);
       setMessages([]);
-    } catch (error) {
-      console.error('Failed to create conversation:', error);
+      setSelectedFeature(newConvo.featureUsed || 'Smart_Chat');
+    } catch (err) {
+      console.error('Failed to create conversation:', err);
     }
   };
 
-  /**
-   * Select conversation
-   */
-  const handleSelectChat = (id) => {
+  const handleSelectChat = async (id) => {
     setCurrentConversationId(id);
-    setIsSidebarOpen(false); // Close sidebar on mobile
+    setIsSidebarOpen(false);
+    const conv = conversations.find((c) => c._id === id);
+    if (conv) setSelectedFeature(conv.featureUsed || 'Smart_Chat');
   };
 
-  /**
-   * Delete conversation
-   */
   const handleDeleteChat = async (id) => {
     if (!window.confirm('Delete this conversation?')) return;
-
     try {
       await conversationAPI.delete(id);
       const updated = conversations.filter((c) => c._id !== id);
       setConversations(updated);
-
-      // Select another conversation or create new one
       if (currentConversationId === id) {
-        if (updated.length > 0) {
-          setCurrentConversationId(updated[0]._id);
-        } else {
-          await handleNewChat();
-        }
+        updated.length > 0 ? setCurrentConversationId(updated[0]._id) : await handleNewChat();
       }
-    } catch (error) {
-      console.error('Failed to delete conversation:', error);
-      alert('Failed to delete conversation');
+    } catch (err) {
+      console.error('Failed to delete conversation:', err);
     }
   };
 
-  /**
-   * Rename conversation
-   */
-  const handleRenameChat = async (id, newTitle) => {
-    try {
-      await conversationAPI.update(id, { title: newTitle });
-      setConversations((prev) =>
-        prev.map((c) => (c._id === id ? { ...c, title: newTitle } : c))
-      );
-    } catch (error) {
-      console.error('Failed to rename conversation:', error);
-      alert('Failed to rename conversation');
+  const handleRenameChat = (id, newTitle) => {
+    setConversations((prev) =>
+      prev.map((c) => (c._id === id ? { ...c, title: newTitle } : c))
+    );
+    if (currentConversation?._id === id) {
+      setCurrentConversation((prev) => ({ ...prev, title: newTitle }));
     }
   };
 
-  /**
-   * Send message
-   */
   const handleSend = async () => {
     if (!input.trim() || !currentConversationId || isLoading) return;
 
-    // Add temporary user message
-    const tempMessage = {
-      _id: `temp-${Date.now()}`,
-      role: 'user',
-      content: input,
-    };
+    const tempMessage = { _id: `temp-${Date.now()}`, role: 'user', content: input };
     setMessages((prev) => [...prev, tempMessage]);
 
-    const messageContent = input;
+    const messageContent  = input;
+    const isFirstMessage  = messages.length === 0;
     setInput('');
     setIsLoading(true);
 
     try {
-      // Send message to backend
       await conversationAPI.sendMessage(currentConversationId, messageContent);
-      
-      // Refetch messages to get AI response
+
+      // Auto-title on first message
+      if (isFirstMessage) {
+        const title = messageContent.length > 50 ? messageContent.substring(0, 47) + '…' : messageContent;
+        try {
+          await conversationAPI.update(currentConversationId, { title });
+          setConversations((prev) =>
+            prev.map((c) => (c._id === currentConversationId ? { ...c, title } : c))
+          );
+        } catch (err) {
+          console.error('Failed to update title:', err);
+        }
+      }
+
       await fetchMessages();
-    } catch (error) {
-      console.error('Failed to send message:', error);
+    } catch (err) {
+      console.error('Failed to send message:', err);
       setMessages((prev) => [
         ...prev.filter((m) => m._id !== tempMessage._id),
-        {
-          _id: 'error',
-          role: 'system',
-          content: 'Failed to get response. Please try again.',
-        },
+        { _id: 'error', role: 'system', content: 'Failed to get response. Please try again.' },
       ]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  /**
-   * Upload files
-   */
   const handleFileUpload = async (files) => {
     if (!currentConversationId || files.length === 0) return;
-
     const fileNames = files.map((f) => f.name).join(', ');
-    const systemMessage = {
-      _id: `upload-${Date.now()}`,
-      role: 'system',
-      content: `Uploading ${fileNames}...`,
-    };
+    const systemMessage = { _id: `upload-${Date.now()}`, role: 'system', content: `Uploading ${fileNames}…` };
     setMessages((prev) => [...prev, systemMessage]);
-
     try {
       await documentAPI.upload(currentConversationId, files);
       setMessages((prev) =>
-        prev.map((m) =>
-          m._id === systemMessage._id
-            ? { ...m, content: `${fileNames} uploaded successfully. Processing...` }
-            : m
-        )
+        prev.map((m) => m._id === systemMessage._id ? { ...m, content: `✓ ${fileNames} uploaded. Processing…` } : m)
       );
-    } catch (error) {
-      console.error('File upload failed:', error);
+    } catch (err) {
+      console.error('File upload failed:', err);
       setMessages((prev) =>
-        prev.map((m) =>
-          m._id === systemMessage._id
-            ? { ...m, content: `Failed to upload ${fileNames}` }
-            : m
-        )
+        prev.map((m) => m._id === systemMessage._id ? { ...m, content: `✗ Failed to upload ${fileNames}` } : m)
       );
     }
   };
 
-  /**
-   * Export conversation
-   */
-  const handleExport = () => {
-    const dataStr = JSON.stringify(messages, null, 2);
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(dataBlob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `chat-${currentConversationId}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  /**
-   * Share conversation
-   */
   const handleShare = () => {
     const text = messages
       .filter((m) => m.role !== 'system')
       .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
       .join('\n\n');
-    
     navigator.clipboard.writeText(text).then(
       () => alert('Conversation copied to clipboard!'),
       () => alert('Failed to copy conversation')
     );
   };
 
+  const handleFeatureChange = async (feature) => {
+    if (!currentConversationId || isLoading) return;
+    setSelectedFeature(feature);
+    try {
+      await conversationAPI.update(currentConversationId, { featureUsed: feature });
+      setConversations((prev) =>
+        prev.map((c) => (c._id === currentConversationId ? { ...c, featureUsed: feature } : c))
+      );
+    } catch (err) {
+      console.error('Failed to update feature mode:', err);
+    }
+  };
+
+  const handleVoiceTranscript = (transcript) => setInput(transcript);
+
+  const handleSuggestionClick = (suggestion) => {
+    if (!suggestion || isLoading || !currentConversationId) return;
+    setInput(suggestion);
+  };
+
+  const handleMessageUpdate = (messageId, newContent) => {
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg._id === messageId ? { ...msg, content: newContent } : msg
+      )
+    );
+  };
+
+  const handleMessageDelete = (messageId) => {
+    setMessages((prev) => prev.filter((msg) => msg._id !== messageId));
+  };
+
+  const handleRegenerateResponse = (data) => {
+    // Remove all messages after the edited user message and add new response
+    const userMessageId = data.userMessage._id;
+    setMessages((prev) => {
+      const userMsgIndex = prev.findIndex((m) => m._id === userMessageId);
+      if (userMsgIndex === -1) return prev;
+      
+      // Keep messages up to and including the edited user message
+      const updatedMessages = prev.slice(0, userMsgIndex + 1);
+      // Update the user message content
+      updatedMessages[userMsgIndex] = data.userMessage;
+      // Add the new assistant response
+      return [...updatedMessages, data.assistantMessage];
+    });
+  };
+
+  // ---- Render ----
   return (
-    <div className="flex h-screen bg-gradient-to-br from-blue-50 via-blue-100 to-blue-200 text-gray-900">
-      {/* Sidebar */}
+    <div
+      className="flex h-screen overflow-hidden"
+      style={{ backgroundColor: 'var(--color-bg-page)', color: 'var(--color-text-primary)' }}
+    >
+      {/* ---- Sidebar ---- */}
       <Sidebar
         conversations={conversations}
         currentConversationId={currentConversationId}
@@ -275,115 +275,248 @@ const ChatPage = () => {
         onClose={() => setIsSidebarOpen(false)}
       />
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <header className="flex items-center justify-between px-6 py-4 border-b border-gray-200/50 bg-white/80 backdrop-blur-xl shadow-sm">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setIsSidebarOpen(true)}
-              className="md:hidden p-2.5 hover:bg-gray-100 rounded-xl transition-all duration-200"
-            >
-              <Menu className="w-5 h-5 text-gray-700" />
-            </button>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center shadow-lg">
-                <Bot className="w-5 h-5 text-white" />
+      {/* ---- Main Content ---- */}
+      <div className="flex-1 flex flex-col min-w-0">
+
+        {/* ---- Header ---- */}
+        <header
+          className="flex flex-col sm:flex-row items-start sm:items-center justify-between
+                     px-3 sm:px-4 md:px-6 py-3 sm:py-3.5 gap-3 sm:gap-4 glass z-10"
+        >
+          {/* Top row */}
+          <div className="flex items-center justify-between w-full sm:w-auto gap-2 sm:gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 sm:flex-initial">
+              {/* Hamburger — mobile only */}
+              <button
+                onClick={() => setIsSidebarOpen(true)}
+                className="md:hidden icon-btn"
+                aria-label="Open sidebar"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+
+              {/* Brand */}
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center shadow-md flex-shrink-0">
+                  <Bot className="w-4 h-4 text-white" />
+                </div>
+                <div className="min-w-0">
+                  <h1 className="text-sm sm:text-base font-bold gradient-text truncate">
+                    Financial AI Assistant
+                  </h1>
+                  <p className="text-xs hidden sm:block" style={{ color: 'var(--color-text-muted)' }}>
+                    Powered by Groq AI
+                  </p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-lg font-bold gradient-text">
-                  Financial AI Assistant
-                </h1>
-                <p className="text-xs text-gray-500">Powered by Google Gemini</p>
-              </div>
+            </div>
+
+            {/* Mobile quick actions */}
+            <div className="flex items-center gap-1 sm:hidden">
+              {messages.length > 0 && (
+                <ExportReports
+                  messages={messages}
+                  conversationTitle={currentConversation?.title || 'Chat'}
+                />
+              )}
+              <button onClick={handleShare} className="icon-btn" title="Share">
+                <Share2 className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsDocumentPreviewOpen(true)}
-              className="p-2.5 hover:bg-gray-100 rounded-xl transition-all duration-200 group"
-              title="View documents"
+          {/* Bottom row */}
+          <div className="flex items-center justify-between w-full sm:w-auto gap-2 sm:gap-4">
+            {/* Feature selector */}
+            <div className="flex-1 sm:flex-initial overflow-x-auto scrollbar-thin">
+              <FeatureSelector
+                selectedFeature={selectedFeature}
+                onFeatureChange={handleFeatureChange}
+                disabled={isLoading}
+              />
+            </div>
+
+            {/* Desktop actions */}
+            <div
+              className="hidden sm:flex items-center gap-1.5 pl-4 flex-shrink-0 border-l"
+              style={{ borderColor: 'var(--color-border)' }}
             >
-              <FileText className="w-5 h-5 text-gray-600 group-hover:text-blue-600" />
-            </button>
-            <button
-              onClick={() => navigate('/analytics')}
-              className="p-2.5 hover:bg-gray-100 rounded-xl transition-all duration-200 group"
-              title="View analytics"
-            >
-              <BarChart3 className="w-5 h-5 text-gray-600 group-hover:text-blue-600" />
-            </button>
-            <button
-              onClick={handleShare}
-              className="p-2.5 hover:bg-gray-100 rounded-xl transition-all duration-200 group"
-              title="Share conversation"
-            >
-              <Share2 className="w-5 h-5 text-gray-600 group-hover:text-blue-600" />
-            </button>
-            <button
-              onClick={handleExport}
-              className="p-2.5 hover:bg-gray-100 rounded-xl transition-all duration-200 group"
-              title="Export conversation"
-            >
-              <Download className="w-5 h-5 text-gray-600 group-hover:text-blue-600" />
-            </button>
+              {messages.length > 0 && (
+                <ExportReports
+                  messages={messages}
+                  conversationTitle={currentConversation?.title || 'Chat'}
+                />
+              )}
+              <button onClick={handleShare} className="icon-btn" title="Share conversation">
+                <Share2 className="w-4 h-4" />
+              </button>
+
+              {/* User Menu */}
+              <div className="relative ml-1" ref={userMenuRef}>
+                <button
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                  className="flex items-center gap-2 p-1.5 rounded-xl transition-all"
+                  style={{ ':hover': { backgroundColor: 'var(--color-bg-hover)' } }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  aria-label="User menu"
+                >
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center text-white font-semibold text-sm select-none">
+                    {user?.name?.charAt(0).toUpperCase()}
+                  </div>
+                </button>
+
+                {showUserMenu && (
+                  <div
+                    className="absolute right-0 top-full mt-2 w-56 rounded-xl shadow-xl border py-1.5 z-50 animate-fadeIn"
+                    style={{
+                      backgroundColor: 'var(--color-bg-surface)',
+                      borderColor: 'var(--color-border)',
+                    }}
+                  >
+                    {/* User info */}
+                    <div
+                      className="px-4 py-3 border-b"
+                      style={{ borderColor: 'var(--color-border)' }}
+                    >
+                      <p className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                        {user?.name}
+                      </p>
+                      <p className="text-xs truncate mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+                        {user?.email}
+                      </p>
+                      <span
+                        className="inline-block mt-1.5 px-2 py-0.5 text-xs rounded-full font-medium badge-blue"
+                      >
+                        {user?.role}
+                      </span>
+                    </div>
+
+                    {isAdmin && (
+                      <button
+                        onClick={() => navigate('/admin')}
+                        className="w-full px-4 py-2.5 text-left text-sm flex items-center gap-2.5 transition-colors"
+                        style={{ color: 'var(--color-text-secondary)' }}
+                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                      >
+                        <Shield className="w-4 h-4" />
+                        Admin Dashboard
+                      </button>
+                    )}
+                    <button
+                      onClick={() => navigate('/dashboard')}
+                      className="w-full px-4 py-2.5 text-left text-sm flex items-center gap-2.5 transition-colors"
+                      style={{ color: 'var(--color-text-secondary)' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                    >
+                      <BarChart3 className="w-4 h-4" />
+                      My Dashboard
+                    </button>
+                    <button
+                      onClick={handleLogout}
+                      className="w-full px-4 py-2.5 text-left text-sm flex items-center gap-2.5 transition-colors text-red-600"
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.08)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Logout
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </header>
 
-        {/* Messages */}
-        <main className="flex-1 overflow-y-auto scrollbar-thin p-6 md:p-8">
+        {/* ---- Messages Area ---- */}
+        <main className="flex-1 overflow-y-auto scrollbar-thin p-3 sm:p-4 md:p-6 lg:p-8">
           <div className="max-w-4xl mx-auto">
+
+            {/* Empty state */}
             {messages.length === 0 && !isLoading && (
-              <div className="text-center mt-24">
-                <div className="w-24 h-24 mx-auto mb-6 rounded-3xl bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center shadow-xl">
-                  <Bot className="w-12 h-12 text-blue-600" />
+              <div className="text-center mt-10 sm:mt-16 md:mt-20 px-2 animate-fadeInUp">
+                <div
+                  className="w-20 h-20 sm:w-24 sm:h-24 mx-auto mb-5 rounded-3xl flex items-center justify-center shadow-xl"
+                  style={{ background: 'linear-gradient(135deg, #dbeafe, #bfdbfe)' }}
+                >
+                  <Bot className="w-10 h-10 sm:w-12 sm:h-12 text-blue-600" />
                 </div>
-                <h2 className="text-2xl font-bold text-gray-800 mb-2">Welcome to FinChatBot</h2>
-                <p className="text-gray-500 mb-8 max-w-md mx-auto">
+                <h2
+                  className="text-2xl sm:text-3xl font-bold mb-2"
+                  style={{ color: 'var(--color-text-primary)' }}
+                >
+                  Welcome to FinChatBot
+                </h2>
+                <p
+                  className="text-sm sm:text-base mb-8 max-w-md mx-auto"
+                  style={{ color: 'var(--color-text-secondary)' }}
+                >
                   Your intelligent financial assistant. Upload documents or ask questions to get started.
                 </p>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-2xl mx-auto">
-                  <div className="p-4 bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center mb-3 mx-auto">
-                      <span className="text-2xl">📄</span>
+
+                {/* Feature cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 max-w-2xl mx-auto">
+                  {[
+                    { emoji: '📄', title: 'Upload Documents', desc: 'PDF, Excel, CSV files' },
+                    { emoji: '💬', title: 'Ask Questions', desc: 'Get instant answers' },
+                    { emoji: '📊', title: 'Analyze Data', desc: 'Financial insights' },
+                  ].map(({ emoji, title, desc }) => (
+                    <div key={title} className="card text-center py-5 sm:py-6">
+                      <div
+                        className="w-12 h-12 rounded-xl flex items-center justify-center mb-3 mx-auto text-2xl"
+                        style={{ backgroundColor: 'var(--color-primary-light)' }}
+                      >
+                        {emoji}
+                      </div>
+                      <p className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                        {title}
+                      </p>
+                      <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                        {desc}
+                      </p>
                     </div>
-                    <p className="text-sm font-semibold text-gray-700">Upload Documents</p>
-                    <p className="text-xs text-gray-500 mt-1">PDF, Excel, CSV files</p>
-                  </div>
-                  <div className="p-4 bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center mb-3 mx-auto">
-                      <span className="text-2xl">💬</span>
-                    </div>
-                    <p className="text-sm font-semibold text-gray-700">Ask Questions</p>
-                    <p className="text-xs text-gray-500 mt-1">Get instant answers</p>
-                  </div>
-                  <div className="p-4 bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center mb-3 mx-auto">
-                      <span className="text-2xl">📊</span>
-                    </div>
-                    <p className="text-sm font-semibold text-gray-700">Analyze Data</p>
-                    <p className="text-xs text-gray-500 mt-1">Financial insights</p>
-                  </div>
+                  ))}
                 </div>
               </div>
             )}
 
+            {/* Messages */}
             {messages.map((msg) => (
-              <Message key={msg._id} message={msg} />
+              <Message 
+                key={msg._id} 
+                message={msg}
+                onMessageUpdate={handleMessageUpdate}
+                onMessageDelete={handleMessageDelete}
+                onRegenerateResponse={handleRegenerateResponse}
+              />
             ))}
 
+            {/* Smart suggestions */}
+            {messages.length > 0 &&
+              messages[messages.length - 1].role === 'assistant' &&
+              !isLoading && (
+                <SmartSuggestions
+                  lastMessage={messages[messages.length - 1]}
+                  documents={currentConversation?.documents || []}
+                  onSuggestionClick={handleSuggestionClick}
+                  disabled={isLoading}
+                />
+              )}
+
+            {/* Typing indicator */}
             {isLoading && messages.length > 0 && (
-              <div className="flex gap-4 mb-6 animate-fadeIn">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center shadow-lg">
-                  <Bot className="w-6 h-6 text-white" />
+              <div className="flex gap-3 mb-6 animate-fadeIn">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center shadow-md flex-shrink-0 self-end">
+                  <Bot className="w-5 h-5 text-white" />
                 </div>
-                <div className="px-6 py-4 bg-white rounded-3xl rounded-tl-md shadow-md border border-gray-100">
-                  <div className="flex gap-1.5">
-                    <span className="w-2.5 h-2.5 bg-blue-500 rounded-full animate-bounce-dot"></span>
-                    <span className="w-2.5 h-2.5 bg-blue-600 rounded-full animate-bounce-dot"></span>
-                    <span className="w-2.5 h-2.5 bg-blue-700 rounded-full animate-bounce-dot"></span>
-                  </div>
+                <div
+                  className="message-assistant inline-flex items-center gap-1.5 px-5 py-3.5"
+                >
+                  <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce-dot" />
+                  <span className="w-2 h-2 bg-blue-600 rounded-full animate-bounce-dot" />
+                  <span className="w-2 h-2 bg-blue-700 rounded-full animate-bounce-dot" />
                 </div>
               </div>
             )}
@@ -392,8 +525,15 @@ const ChatPage = () => {
           </div>
         </main>
 
-        {/* Input */}
-        <footer className="p-6 md:p-8 border-t border-gray-200/50 bg-white/80 backdrop-blur-xl">
+        {/* ---- Footer / Input ---- */}
+        <footer
+          className="p-3 sm:p-4 md:p-5 border-t"
+          style={{
+            backgroundColor: 'var(--color-bg-header)',
+            borderColor: 'var(--color-border)',
+            backdropFilter: 'blur(12px)',
+          }}
+        >
           <div className="max-w-4xl mx-auto">
             <ChatInput
               input={input}
@@ -401,17 +541,11 @@ const ChatPage = () => {
               onSend={handleSend}
               isLoading={isLoading}
               onFileUpload={handleFileUpload}
+              onVoiceTranscript={handleVoiceTranscript}
             />
           </div>
         </footer>
       </div>
-
-      {/* Document Preview Panel */}
-      <DocumentPreview
-        conversationId={currentConversationId}
-        isOpen={isDocumentPreviewOpen}
-        onClose={() => setIsDocumentPreviewOpen(false)}
-      />
     </div>
   );
 };

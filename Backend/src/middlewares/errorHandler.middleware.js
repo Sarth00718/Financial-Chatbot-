@@ -3,11 +3,13 @@
  * Catches all errors and sends consistent error responses
  */
 
+import logger from "../services/logger.service.js";
+
 /**
  * Global error handling middleware
  * Must be defined after all routes
  */
-export const errorHandler = (err, _req, res, _next) => {
+export const errorHandler = (err, req, res, _next) => {
   // Default to 500 Internal Server Error
   let statusCode = err.statusCode || 500;
   let message = err.message || "Internal Server Error";
@@ -53,10 +55,15 @@ export const errorHandler = (err, _req, res, _next) => {
     }
   }
 
-  // Log error for debugging (in development)
-  if (process.env.NODE_ENV !== "production") {
-    console.error("❌ Error:", err);
-  }
+  // Log error
+  logger.error(`${statusCode} - ${message}`, {
+    method: req.method,
+    url: req.originalUrl,
+    ip: req.ip,
+    userId: req.user?._id,
+    errors,
+    stack: err.stack,
+  });
 
   // Send error response
   res.status(statusCode).json({

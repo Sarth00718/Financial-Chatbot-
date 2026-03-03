@@ -6,10 +6,6 @@ Defines the structure of API requests and responses
 from pydantic import BaseModel, Field
 from typing import List, Dict
 
-# ============================================
-# REQUEST MODELS
-# ============================================
-
 class ProcessDocumentRequest(BaseModel):
     """
     Request model for document processing endpoint
@@ -79,11 +75,6 @@ class DeleteDocumentRequest(BaseModel):
                 "vectorNamespace": "doc-123e4567-e89b-12d3-a456-426614174000"
             }
         }
-
-
-# ============================================
-# RESPONSE MODELS
-# ============================================
 
 class QueryResponse(BaseModel):
     """

@@ -9,7 +9,7 @@ import { FEATURE_MODES } from "../config/constants.js";
 const conversationSchema = new mongoose.Schema(
   {
     // User who owns this conversation
-    userId: {
+    user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,

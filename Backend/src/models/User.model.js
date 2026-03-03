@@ -1,56 +1,97 @@
 /**
  * User Model
- * Defines user schema for authentication
+ * Represents application users with authentication and authorization
  */
 
-import mongoose from 'mongoose';
-import bcrypt from 'bcryptjs';
+import mongoose from "mongoose";
+import bcrypt from "bcryptjs";
 
 const userSchema = new mongoose.Schema(
   {
+    // Basic Information
     name: {
       type: String,
-      required: [true, 'Name is required'],
+      required: [true, "Name is required"],
       trim: true,
-      minlength: [2, 'Name must be at least 2 characters'],
-      maxlength: [50, 'Name cannot exceed 50 characters'],
+      minlength: [2, "Name must be at least 2 characters"],
+      maxlength: [50, "Name cannot exceed 50 characters"],
     },
     email: {
       type: String,
-      required: [true, 'Email is required'],
+      required: [true, "Email is required"],
       unique: true,
       lowercase: true,
       trim: true,
-      match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email'],
+      match: [
+        /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
+        "Please provide a valid email",
+      ],
     },
     password: {
       type: String,
-      required: [true, 'Password is required'],
-      minlength: [8, 'Password must be at least 8 characters'],
-      select: false, // Don't include password in queries by default
+      required: [true, "Password is required"],
+      minlength: [6, "Password must be at least 6 characters"],
+      select: false, // Don't return password by default
     },
+
+    // Role-Based Access Control
     role: {
       type: String,
-      enum: ['user', 'admin'],
-      default: 'user',
+      enum: ["user", "admin"],
+      default: "user",
     },
+
+    // Account Status
     isActive: {
       type: Boolean,
       default: true,
     },
+    isEmailVerified: {
+      type: Boolean,
+      default: false,
+    },
+
+    // Password Reset
+    resetPasswordToken: {
+      type: String,
+      select: false,
+    },
+    resetPasswordExpire: {
+      type: Date,
+      select: false,
+    },
+
+    // Email Verification
+    emailVerificationToken: {
+      type: String,
+      select: false,
+    },
+    emailVerificationExpire: {
+      type: Date,
+      select: false,
+    },
+
+    // Refresh Token for JWT
+    refreshToken: {
+      type: String,
+      select: false,
+    },
+
+    // Last Login
     lastLogin: {
       type: Date,
     },
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
 // Hash password before saving
-userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
-  
+userSchema.pre("save", async function (next) {
+  // Only hash if password is modified
+  if (!this.isModified("password")) {
+    return next();
+  }
+
   try {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
@@ -60,18 +101,25 @@ userSchema.pre('save', async function (next) {
   }
 });
 
-// Method to compare passwords
+// Compare password method
 userSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
-// Method to get public profile
-userSchema.methods.toJSON = function () {
-  const user = this.toObject();
-  delete user.password;
-  return user;
+// Generate password reset token
+userSchema.methods.generateResetToken = function () {
+  const resetToken = new mongoose.Types.ObjectId().toString();
+  this.resetPasswordToken = resetToken;
+  this.resetPasswordExpire = Date.now() + 3600000; // 1 hour
+  return resetToken;
 };
 
-const User = mongoose.model('User', userSchema);
+// Generate email verification token
+userSchema.methods.generateVerificationToken = function () {
+  const verificationToken = new mongoose.Types.ObjectId().toString();
+  this.emailVerificationToken = verificationToken;
+  this.emailVerificationExpire = Date.now() + 86400000; // 24 hours
+  return verificationToken;
+};
 
-export default User;
+export const User = mongoose.model("User", userSchema);

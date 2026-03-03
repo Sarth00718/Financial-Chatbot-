@@ -1,12 +1,11 @@
 """
 RAG (Retrieval Augmented Generation) Service
 Handles question answering using document context
-Strategy: Groq LLM (primary - fast and accurate) → Gemini LLM (fallback)
+Simplified version with clear logic flow
 """
 
-from typing import List, Dict, Optional
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_groq import ChatGroq
+from typing import List, Dict
+from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.documents import Document
@@ -19,112 +18,24 @@ from app.config.prompts import (
     GENERAL_CONVERSATION_PROMPT
 )
 from app.services.vector_store import vector_store
+import traceback
 
 
 class RAGService:
     """
     Retrieval Augmented Generation Service
     Answers questions using relevant document context
-    Strategy: Groq LLM (primary - fast and accurate) → Gemini LLM (fallback)
     """
     
     def __init__(self):
-        """Initialize RAG service with Groq and Gemini LLMs"""
-        # Validate API keys
-        if not settings.GROQ_API_KEY and not settings.GOOGLE_API_KEY:
-            raise ValueError(
-                "At least one API key must be set. "
-                "Get Groq key from: https://console.groq.com/keys "
-                "Get Gemini key from: https://makersuite.google.com/app/apikey"
-            )
-        
-        # Initialize Groq LLM (Primary - Fast and accurate)
-        self.groq_llm = None
-        if settings.GROQ_API_KEY:
-            try:
-                self.groq_llm = ChatGroq(
-                    model=settings.GROQ_LLM_MODEL,
-                    api_key=settings.GROQ_API_KEY,
-                    temperature=settings.LLM_TEMPERATURE
-                )
-                print("[OK] Groq LLM initialized (Primary - Fast and accurate)")
-            except Exception as e:
-                print(f"[WARNING] Failed to initialize Groq LLM: {e}")
-        
-        # Initialize Gemini LLM (Fallback)
-        self.gemini_llm = None
-        if settings.GOOGLE_API_KEY:
-            try:
-                self.gemini_llm = ChatGoogleGenerativeAI(
-                    model=settings.GEMINI_LLM_MODEL,
-                    temperature=settings.LLM_TEMPERATURE,
-                    google_api_key=settings.GOOGLE_API_KEY,
-                    convert_system_message_to_human=True
-                )
-                print("[OK] Gemini LLM initialized (Fallback)")
-            except Exception as e:
-                print(f"[WARNING] Failed to initialize Gemini LLM: {e}")
-        
-        if not self.groq_llm and not self.gemini_llm:
-            raise RuntimeError("Failed to initialize any LLM")
-    
-    def _get_llm(self, use_fallback: bool = False):
-        """
-        Get the appropriate LLM (Groq primary, Gemini fallback)
-        
-        Args:
-            use_fallback: Force use of Gemini for complex reasoning
-            
-        Returns:
-            LLM instance
-        """
-        if use_fallback and self.gemini_llm:
-            return self.gemini_llm
-        
-        if self.groq_llm:
-            return self.groq_llm
-        
-        if self.gemini_llm:
-            return self.gemini_llm
-        
-        raise RuntimeError("No LLM available")
-    
-    def _invoke_with_fallback(self, prompt: PromptTemplate, inputs: dict) -> str:
-        """
-        Invoke LLM with automatic fallback
-        Try Groq first → Gemini
-        
-        Args:
-            prompt: Prompt template
-            inputs: Input variables for prompt
-            
-        Returns:
-            Generated answer
-        """
-        # Try Groq first (Primary - Fast and accurate)
-        if self.groq_llm:
-            try:
-                print("[LLM] Using Groq (Primary)...")
-                chain = prompt | self.groq_llm | StrOutputParser()
-                answer = chain.invoke(inputs)
-                print("[OK] Groq succeeded")
-                return answer
-            except Exception as e:
-                print(f"[FALLBACK] Groq failed: {e}, switching to Gemini...")
-        
-        # Fall back to Gemini
-        if self.gemini_llm:
-            try:
-                print("[LLM] Using Gemini (Fallback)...")
-                chain = prompt | self.gemini_llm | StrOutputParser()
-                answer = chain.invoke(inputs)
-                print("[OK] Gemini succeeded")
-                return answer
-            except Exception as e:
-                print(f"[ERROR] All LLMs failed: {e}")
-                raise
-        
-        raise RuntimeError("No LLM available")
+        """Initialize RAG service with LLM"""
+        self.llm = ChatOpenAI(
+            model=settings.LLM_MODEL,
+            temperature=settings.LLM_TEMPERATURE,
+            max_tokens=2000,  # Limit response length to save credits
+            openai_api_key=settings.GROQ_API_KEY,
+            openai_api_base="https://api.groq.com/openai/v1",
+        )
     
     def _format_documents(self, docs: List[Document]) -> str:
         """
@@ -241,9 +152,12 @@ class RAGService:
         # Create prompt
         prompt = PromptTemplate.from_template(SMART_CHAT_PROMPT)
         
-        # Generate answer with automatic fallback
+        # Build RAG chain
+        chain = prompt | self.llm | StrOutputParser()
+        
+        # Generate answer
         print("[LLM] Generating answer...")
-        answer = self._invoke_with_fallback(prompt, {
+        answer = chain.invoke({
             "context": context,
             "chat_history": history,
             "question": question
@@ -286,8 +200,11 @@ class RAGService:
         # Create prompt
         prompt = PromptTemplate.from_template(DOCUMENT_ANALYSIS_PROMPT)
         
-        # Generate answer with automatic fallback
-        answer = self._invoke_with_fallback(prompt, {
+        # Build chain
+        chain = prompt | self.llm | StrOutputParser()
+        
+        # Generate answer
+        answer = chain.invoke({
             "context": context,
             "question": question
         })
@@ -328,8 +245,11 @@ class RAGService:
         # Create prompt
         prompt = PromptTemplate.from_template(ANALYTICAL_INSIGHTS_PROMPT)
         
-        # Generate answer with automatic fallback
-        answer = self._invoke_with_fallback(prompt, {
+        # Build chain
+        chain = prompt | self.llm | StrOutputParser()
+        
+        # Generate answer
+        answer = chain.invoke({
             "context": context,
             "question": question
         })
@@ -359,8 +279,11 @@ class RAGService:
         # Create prompt
         prompt = PromptTemplate.from_template(GENERAL_CONVERSATION_PROMPT)
         
-        # Generate answer with automatic fallback
-        answer = self._invoke_with_fallback(prompt, {
+        # Build chain
+        chain = prompt | self.llm | StrOutputParser()
+        
+        # Generate answer
+        answer = chain.invoke({
             "chat_history": history,
             "question": question
         })
@@ -421,11 +344,18 @@ class RAGService:
             
         except Exception as e:
             print(f"\n[ERROR] Error generating answer: {e}")
+            # Print full traceback for debugging
+            traceback.print_exc()
+            try:
+                with open("error_traceback.log", "a", encoding="utf-8") as fh:
+                    fh.write(traceback.format_exc())
+                    fh.write("\n---\n")
+            except Exception:
+                pass
             return (
                 "I encountered an error while processing your question. "
                 "Please try again or rephrase your question."
             )
-
-
+            
 # Create global RAG service instance
 rag_service = RAGService()
