@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     # Current supported vision model on Groq (llama-3.2-90b-vision-preview is decommissioned)
     VISION_MODEL: str = "meta-llama/llama-4-scout-17b-16e-instruct"
     
+    # OCR Configuration
+    TESSERACT_CMD: str = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+    
     # Document Processing Configuration
     CHUNK_SIZE: int = 1000
     CHUNK_OVERLAP: int = 150

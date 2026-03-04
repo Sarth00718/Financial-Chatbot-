@@ -207,3 +207,40 @@ async def delete_multiple_documents(request: dict):
             status_code=500,
             detail=f"Failed to delete documents: {str(e)}"
         )
+
+
+@router.post("/audit-summary")
+async def audit_summary(request: dict):
+    """
+    Structured financial data extraction endpoint.
+    Returns key financial metrics as a JSON object,
+    extracted strictly from the uploaded documents.
+
+    Body: { "vectorNamespaces": ["ns1", "ns2", ...] }
+    """
+    try:
+        namespaces = request.get("vectorNamespaces", [])
+        if not namespaces:
+            raise HTTPException(status_code=400, detail="No vector namespaces provided")
+
+        print(f"\n[AUDIT] Extracting structured financials from {len(namespaces)} document(s)")
+
+        json_str = await rag_service.get_audit_summary(namespaces)
+
+        import json
+        try:
+            parsed = json.loads(json_str)
+        except Exception:
+            parsed = {"raw": json_str, "parse_error": "LLM returned non-JSON output"}
+
+        return {"status": "ok", "data": parsed}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR] Audit summary endpoint failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Audit summary failed: {str(e)}"
+        )
+

@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { Menu, Share2, Bot, LogOut, User, Shield, BarChart3 } from 'lucide-react';
+import { Menu, Share2, LogOut, User, Shield, BarChart3, Bot } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { conversationAPI, documentAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -182,18 +182,90 @@ const ChatPage = () => {
 
   const handleFileUpload = async (files) => {
     if (!currentConversationId || files.length === 0) return;
+
     const fileNames = files.map((f) => f.name).join(', ');
-    const systemMessage = { _id: `upload-${Date.now()}`, role: 'system', content: `Uploading ${fileNames}…` };
-    setMessages((prev) => [...prev, systemMessage]);
+    const msgId = `upload-${Date.now()}`;
+
+    // Stage 1: Uploading
+    setMessages((prev) => [
+      ...prev,
+      { _id: msgId, role: 'system', content: `Uploading ${fileNames}...` },
+    ]);
+
+    let uploadedDocs = [];
     try {
-      await documentAPI.upload(currentConversationId, files);
+      const res = await documentAPI.upload(currentConversationId, files);
+      uploadedDocs = res.data.data?.documents || [];
+
+      // Stage 2: Processing
       setMessages((prev) =>
-        prev.map((m) => m._id === systemMessage._id ? { ...m, content: `✓ ${fileNames} uploaded. Processing…` } : m)
+        prev.map((m) =>
+          m._id === msgId
+            ? { ...m, content: `Processing ${fileNames}... (large or scanned PDFs may take up to 2 minutes)` }
+            : m
+        )
       );
+
+      // Stage 3: Poll until all docs are processed or failed
+      if (uploadedDocs.length > 0) {
+        const docIds = uploadedDocs.map((d) => d._id);
+        let elapsed = 0;
+        const INTERVAL = 2000; // Check every 2 seconds
+        const TIMEOUT  = 120000;
+
+        const poll = setInterval(async () => {
+          elapsed += INTERVAL;
+          try {
+            const statusRes = await documentAPI.getByConversation(currentConversationId);
+            const docs = statusRes.data.data || [];
+            const relevant = docs.filter((d) => docIds.includes(d._id));
+            
+            if (relevant.length === 0) {
+              // Documents not found yet, keep polling
+              return;
+            }
+
+            const allDone   = relevant.every((d) => d.status === 'processed' || d.status === 'failed');
+            const anyFailed = relevant.some((d) => d.status === 'failed');
+            const allOk     = relevant.every((d) => d.status === 'processed');
+
+            if (allDone) {
+              clearInterval(poll);
+              let finalMsg;
+              if (allOk) {
+                finalMsg = `✅ Analysis complete — ${fileNames} is ready. You can now ask questions about this document.`;
+              } else if (anyFailed) {
+                finalMsg = `⚠️ Warning: ${fileNames} processing completed with issues. Some pages may not be fully extracted.`;
+              } else {
+                finalMsg = `⚠️ ${fileNames} processing completed with mixed results.`;
+              }
+              setMessages((prev) =>
+                prev.map((m) => m._id === msgId ? { ...m, content: finalMsg } : m)
+              );
+            } else if (elapsed >= TIMEOUT) {
+              clearInterval(poll);
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m._id === msgId
+                    ? { ...m, content: `⏱️ ${fileNames} is taking longer than expected. You can try asking questions — results may be partial.` }
+                    : m
+                )
+              );
+            }
+          } catch (err) {
+            console.error('Polling error:', err);
+            // Continue polling on error
+          }
+        }, INTERVAL);
+      }
     } catch (err) {
       console.error('File upload failed:', err);
       setMessages((prev) =>
-        prev.map((m) => m._id === systemMessage._id ? { ...m, content: `✗ Failed to upload ${fileNames}` } : m)
+        prev.map((m) =>
+          m._id === msgId
+            ? { ...m, content: `❌ Failed to upload ${fileNames}. Please try again.` }
+            : m
+        )
       );
     }
   };

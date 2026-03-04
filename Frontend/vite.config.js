@@ -33,13 +33,10 @@ export default defineConfig({
         },
       },
     },
-    // Minification
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true, // Remove console.logs in production
-        drop_debugger: true,
-      },
+    // Use esbuild (built-in, faster, no extra install)
+    minify: 'esbuild',
+    esbuildOptions: {
+      drop: ['console', 'debugger'],
     },
   },
   // Optimize dependencies

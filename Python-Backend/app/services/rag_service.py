@@ -15,7 +15,8 @@ from app.config.prompts import (
     SMART_CHAT_PROMPT,
     DOCUMENT_ANALYSIS_PROMPT,
     ANALYTICAL_INSIGHTS_PROMPT,
-    GENERAL_CONVERSATION_PROMPT
+    GENERAL_CONVERSATION_PROMPT,
+    AUDIT_SUMMARY_PROMPT,
 )
 from app.services.vector_store import vector_store
 import traceback
@@ -39,24 +40,33 @@ class RAGService:
     
     def _format_documents(self, docs: List[Document]) -> str:
         """
-        Format retrieved documents into a single context string
-        
-        Args:
-            docs: List of relevant documents
-            
-        Returns:
-            Formatted context string
+        Format retrieved documents into a single context string.
+        Includes page type metadata so the LLM knows whether content
+        came from plain text, OCR, vision description, or table extraction.
         """
         if not docs:
-            return "No relevant context found."
-        
-        # Join document contents with separators
-        formatted = "\n\n---\n\n".join([
-            f"[Page {doc.metadata.get('page', 'N/A')}] {doc.page_content}"
-            for doc in docs
-        ])
-        
-        return formatted
+            return "No relevant context was found in the uploaded documents."
+
+        parts = []
+        for doc in docs:
+            meta  = doc.metadata or {}
+            page  = meta.get("page", "N/A")
+            dtype = meta.get("type", "text")     # text / image / scanned_page
+            src   = meta.get("source", "")
+
+            # Build a context header that helps the LLM understand origin
+            if dtype == "image":
+                header = f"[Page {page} — Chart/Image Description]"
+            elif dtype == "scanned_page":
+                header = f"[Page {page} — Scanned Page (Vision-extracted)]"
+            elif "table" in src.lower() or "[TABLE" in doc.page_content:
+                header = f"[Page {page} — Table Extraction]"
+            else:
+                header = f"[Page {page}]"
+
+            parts.append(f"{header}\n{doc.page_content}")
+
+        return "\n\n---\n\n".join(parts)
     
     def _format_chat_history(self, chat_history: List[Dict[str, str]]) -> str:
         """
@@ -350,5 +360,43 @@ class RAGService:
                 "Please try again or rephrase your question."
             )
             
+    async def get_audit_summary(
+        self,
+        namespaces: List[str]
+    ) -> str:
+        """
+        Extract structured JSON financial summary from documents.
+        Uses the AUDIT_SUMMARY_PROMPT to get a JSON object with key metrics.
+        
+        Returns:
+            JSON string with financial metrics, or error message
+        """
+        print("\n[MODE] Audit Summary (structured JSON extraction)")
+
+        if not namespaces:
+            return '{"error": "No documents uploaded."}'
+
+        docs = self._retrieve_context(
+            "revenue operating income net income margins EPS assets liabilities cash",
+            namespaces
+        )
+
+        if not docs:
+            return '{"error": "No financial data found in the documents."}'
+
+        context = self._format_documents(docs)
+        prompt  = PromptTemplate.from_template(AUDIT_SUMMARY_PROMPT)
+        chain   = prompt | self.llm | StrOutputParser()
+
+        try:
+            raw = chain.invoke({"context": context})
+            # Strip any accidental markdown code fences
+            raw = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+            return raw
+        except Exception as e:
+            print(f"[ERROR] Audit summary failed: {e}")
+            return f'{{"error": "Extraction failed: {str(e)}"}}'
+
+
 # Create global RAG service instance
 rag_service = RAGService()

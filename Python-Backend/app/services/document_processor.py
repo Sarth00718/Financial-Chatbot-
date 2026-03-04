@@ -285,7 +285,7 @@ class DocumentProcessor:
     # ------------------------------------------------------------------
 
     def _extract_images_from_page(
-        self, doc, page, page_num: int
+        self, doc, page, page_num: int, pdf_path: Optional[str] = None
     ) -> List[Document]:
         """
         Extract embedded images and describe them using the vision model.
@@ -379,7 +379,7 @@ class DocumentProcessor:
         for page_num, page in enumerate(doc, start=1):
             print(f"\n  --- Page {page_num}/{total_pages} ---")
             all_chunks.extend(self._extract_text_from_page(page, page_num, file_path))
-            all_chunks.extend(self._extract_images_from_page(doc, page, page_num))
+            all_chunks.extend(self._extract_images_from_page(doc, page, page_num, file_path))
 
         doc.close()
 

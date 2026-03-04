@@ -30,6 +30,9 @@ try:
     import pytesseract
     import cv2
     PYTESSERACT_AVAILABLE = True
+    
+    # Configure Tesseract path from settings (loaded later in __init__)
+    
 except ImportError:
     PYTESSERACT_AVAILABLE = False
     print("[WARNING] pytesseract / cv2 not installed — local OCR disabled")
@@ -61,6 +64,21 @@ class OCRService:
     def __init__(self):
         self.ocr_enabled = PYTESSERACT_AVAILABLE and PYMUPDF_AVAILABLE
         self.table_extraction_enabled = TABLE_EXTRACTION_AVAILABLE or PDFPLUMBER_AVAILABLE
+
+        # Configure Tesseract path if available
+        if PYTESSERACT_AVAILABLE:
+            try:
+                from app.config.settings import settings
+                tesseract_cmd = settings.TESSERACT_CMD
+                if tesseract_cmd and os.path.exists(tesseract_cmd):
+                    import pytesseract
+                    pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
+                    print(f"[INIT] Tesseract configured at: {tesseract_cmd}")
+                else:
+                    print(f"[WARNING] Tesseract path not found: {tesseract_cmd}")
+                    print("[INFO] OCR may not work correctly")
+            except Exception as e:
+                print(f"[WARNING] Could not configure Tesseract: {e}")
 
         if self.ocr_enabled:
             print("[INIT] OCR service ready (PyMuPDF + pytesseract)")

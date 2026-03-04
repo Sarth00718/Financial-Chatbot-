@@ -1,10 +1,18 @@
 /**
- * Data Visualization Component
- * Auto-generates interactive charts from financial data in messages
- * Supports zoom, drill-down, and multiple chart types
+ * DataVisualization Component
+ * Parses analytical messages with multiple named financial series
+ * (e.g. "Revenue Trend:", "Operating Margin:") and renders each
+ * as a switchable tabbed chart.
+ *
+ * Fixes:
+ *  - Handles ₹, $, €, £ currency symbols
+ *  - Handles % percentage values
+ *  - Handles "Million", "Billion", "Crore", "Lakh" word suffixes
+ *  - Detects section headings → separate datasets (tabs)
+ *  - Falls back to a flat list when no headings exist
  */
 
-import { useState, useRef } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -18,9 +26,8 @@ import {
   ArcElement,
 } from 'chart.js';
 import { Line, Bar, Pie } from 'react-chartjs-2';
-import { BarChart2, LineChart, PieChart, TrendingUp } from 'lucide-react';
+import { BarChart2, LineChart, PieChart, TrendingUp, ChevronLeft, ChevronRight } from 'lucide-react';
 
-// Register ChartJS components
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -33,285 +40,380 @@ ChartJS.register(
   ArcElement
 );
 
+/* ─── Colour palette ──────────────────────────────────────────── */
+const COLOURS = [
+  { bg: 'rgba(37,  99, 235, 0.75)', border: 'rgba(37,  99, 235, 1)' },
+  { bg: 'rgba(16, 185, 129, 0.75)', border: 'rgba(16, 185, 129, 1)' },
+  { bg: 'rgba(245,158,  11, 0.75)', border: 'rgba(245,158,  11, 1)' },
+  { bg: 'rgba(139, 92, 246, 0.75)', border: 'rgba(139, 92, 246, 1)' },
+  { bg: 'rgba(236, 72, 153, 0.75)', border: 'rgba(236, 72, 153, 1)' },
+  { bg: 'rgba(249,115,  22, 0.75)', border: 'rgba(249,115,  22, 1)' },
+];
+
+/* ─── Number parser ───────────────────────────────────────────── */
+const parseNum = (raw) => {
+  if (!raw) return NaN;
+  // Strip currency symbols and whitespace
+  let s = raw.replace(/[₹$€£¥,\s]/g, '');
+  const hasPct = s.includes('%');
+  s = s.replace('%', '');
+  // Named suffixes (case-insensitive)
+  if (/billion$/i.test(s))  return parseFloat(s) * 1_000;
+  if (/million$/i.test(s))  return parseFloat(s);
+  if (/crore$/i.test(s))    return parseFloat(s) * 10;     // crore → millions approx
+  if (/lakh$/i.test(s))     return parseFloat(s) / 100;
+  if (/[Bb]$/.test(s))      return parseFloat(s) * 1_000;
+  if (/[Mm]$/.test(s))      return parseFloat(s);
+  if (/[Kk]$/.test(s))      return parseFloat(s) / 1_000;
+  const n = parseFloat(s);
+  return isNaN(n) ? NaN : n;
+};
+
+/* ─── Detect time-period labels ───────────────────────────────── */
+const isTimePeriod = (lbl) =>
+  /Q[1-4]|FY\s*\d{2,4}|H[12]|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|20\d{2}/i.test(lbl);
+
+/* ─── Section heading detector ────────────────────────────────── */
+//   "Revenue Trend:"  /  "**Operating Margin:**"  / "Key Metrics:"
+const isHeading = (line) => {
+  const t = line.trim().replace(/\*+/g, '').trim();
+  return (
+    t.endsWith(':') &&
+    t.length < 80 &&
+    !t.match(/^[-•*\d]/)   // not a bullet or numbered list
+  );
+};
+
+/* ─── Main extractor ──────────────────────────────────────────── */
+/*
+  Bullet pattern matches lines like:
+    "- Q2 FY24: ₹596,920 Million"
+    "• Q3 FY24: 24.3%"
+    "* 2023: $1,200M"
+    "- Revenue: 5,000"
+*/
+const BULLET_RE =
+  /^[-•*]\s+(.+?):\s*([₹$€£¥]?\s*[\d,]+(?:\.\d+)?%?\s*(?:Billion|Million|Crore|Lakh|[BMKbmk])?)\s*$/i;
+
+const extractData = (text) => {
+  const lines = text.split('\n');
+  const sections = [];   // [{ name, points: [{label, value}] }]
+  let current = null;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    if (isHeading(line)) {
+      const name = line.replace(/\*+/g, '').replace(/:$/, '').trim();
+      current = { name, points: [] };
+      sections.push(current);
+      continue;
+    }
+
+    const m = line.match(BULLET_RE);
+    if (m) {
+      const label = m[1].trim();
+      const val   = parseNum(m[2].trim());
+      if (!isNaN(val) && label.length < 60) {
+        // If no section heading found yet, create a default one
+        if (!current) {
+          current = { name: 'Data', points: [] };
+          sections.push(current);
+        }
+        current.points.push({ label, value: val });
+      }
+    }
+  }
+
+  // Keep only sections with ≥ 2 data points
+  const valid = sections.filter((s) => s.points.length >= 2);
+  if (valid.length === 0) return null;
+
+  return valid.map((s, i) => ({
+    name:   s.name,
+    labels: s.points.map((p) => p.label),
+    values: s.points.map((p) => p.value),
+    isPct:  s.points.some((p) => /%./.test(String(p.raw))),   // percentage series
+    colour: COLOURS[i % COLOURS.length],
+    isTime: s.points.some((p) => isTimePeriod(p.label)),
+  }));
+};
+
+/* ─── Trend line (linear regression) ─────────────────────────── */
+const calcTrend = (values) => {
+  const n = values.length;
+  const sx  = values.reduce((s, _, i) => s + i, 0);
+  const sy  = values.reduce((s, v)    => s + v, 0);
+  const sxy = values.reduce((s, v, i) => s + i * v, 0);
+  const sx2 = values.reduce((s, _, i) => s + i * i, 0);
+  const slope = (n * sxy - sx * sy) / (n * sx2 - sx * sx) || 0;
+  const b = (sy - slope * sx) / n;
+  return values.map((_, i) => +(slope * i + b).toFixed(2));
+};
+
+/* ─── Component ───────────────────────────────────────────────── */
 const DataVisualization = ({ content }) => {
+  const datasets = useMemo(() => extractData(content), [content]);
+
+  const [tab,       setTab]       = useState(0);
   const [chartType, setChartType] = useState('auto');
   const [showTrend, setShowTrend] = useState(false);
-  const chartRef = useRef(null);
 
-  // Extract data from content
-  const extractData = (text) => {
-    const patterns = [
-      /[-•*]?\s*([A-Za-z0-9\s]+):\s*\$?\s*([0-9,]+\.?[0-9]*)/g,
-      /[-•*]?\s*([A-Za-z0-9\s]+)\s*-\s*\$?\s*([0-9,]+\.?[0-9]*)/g,
-      /[-•*]?\s*([A-Za-z0-9\s]+)\s*\(\$?\s*([0-9,]+\.?[0-9]*)\)/g,
-    ];
+  // Reset tab / chart-type if datasets change
+  const ds = datasets?.[tab] ?? datasets?.[0];
 
-    let matches = [];
-    for (const pattern of patterns) {
-      const found = [...text.matchAll(pattern)];
-      if (found.length >= 2) {
-        matches = found;
-        break;
-      }
-    }
+  if (!datasets || datasets.length === 0 || !ds) return null;
 
-    if (matches.length < 2) return null;
+  /* Auto chart type for current series */
+  const autoType = ds.isTime ? 'line' : (datasets.length === 1 && ds.labels.length <= 5 ? 'bar' : 'bar');
+  const activeType = chartType === 'auto' ? autoType : chartType;
 
-    const labels = [];
-    const values = [];
-
-    matches.forEach((match) => {
-      const label = match[1].trim();
-      const value = parseFloat(match[2].replace(/,/g, ''));
-      if (!isNaN(value) && label.length > 0 && label.length < 50) {
-        labels.push(label);
-        values.push(value);
-      }
-    });
-
-    if (labels.length < 2) return null;
-
-    return { labels, values };
-  };
-
-  const data = extractData(content);
-
-  if (!data) return null;
-
-  // Calculate trend line (simple linear regression)
-  const calculateTrend = (values) => {
-    const n = values.length;
-    const sumX = values.reduce((sum, _, i) => sum + i, 0);
-    const sumY = values.reduce((sum, val) => sum + val, 0);
-    const sumXY = values.reduce((sum, val, i) => sum + i * val, 0);
-    const sumX2 = values.reduce((sum, _, i) => sum + i * i, 0);
-
-    const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
-    const intercept = (sumY - slope * sumX) / n;
-
-    return values.map((_, i) => slope * i + intercept);
-  };
-
-  // Determine chart type
-  const getChartType = () => {
-    if (chartType !== 'auto') return chartType;
-    
-    if (data.labels.some(l => /Q[1-4]|20\d{2}|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec/i.test(l))) {
-      return 'line';
-    }
-    if (data.labels.length <= 4) {
-      return 'pie';
-    }
-    return 'bar';
-  };
-
-  const activeChartType = getChartType();
-
-  // Calculate YoY change if applicable
-  const calculateYoYChange = () => {
-    if (data.values.length < 2) return null;
-    const latest = data.values[data.values.length - 1];
-    const previous = data.values[data.values.length - 2];
-    const change = ((latest - previous) / previous) * 100;
-    return change.toFixed(2);
-  };
-
-  const yoyChange = calculateYoYChange();
-
-  const trendData = showTrend ? calculateTrend(data.values) : null;
+  /* Chart.js data */
+  const trendValues = showTrend && activeType !== 'pie' ? calcTrend(ds.values) : null;
 
   const chartData = {
-    labels: data.labels,
+    labels: ds.labels,
     datasets: [
       {
-        label: 'Value',
-        data: data.values,
-        backgroundColor: activeChartType === 'pie' 
-          ? [
-              'rgba(59, 130, 246, 0.8)',
-              'rgba(16, 185, 129, 0.8)',
-              'rgba(249, 115, 22, 0.8)',
-              'rgba(139, 92, 246, 0.8)',
-              'rgba(236, 72, 153, 0.8)',
-            ]
-          : 'rgba(59, 130, 246, 0.8)',
-        borderColor: activeChartType === 'pie'
-          ? [
-              'rgba(59, 130, 246, 1)',
-              'rgba(16, 185, 129, 1)',
-              'rgba(249, 115, 22, 1)',
-              'rgba(139, 92, 246, 1)',
-              'rgba(236, 72, 153, 1)',
-            ]
-          : 'rgba(59, 130, 246, 1)',
+        label: ds.name,
+        data: ds.values,
+        backgroundColor: activeType === 'pie'
+          ? COLOURS.slice(0, ds.values.length).map((c) => c.bg)
+          : ds.colour.bg,
+        borderColor: activeType === 'pie'
+          ? COLOURS.slice(0, ds.values.length).map((c) => c.border)
+          : ds.colour.border,
         borderWidth: 2,
-        tension: 0.4,
-      },
-      ...(showTrend && trendData ? [{
-        label: 'Trend',
-        data: trendData,
-        type: 'line',
-        borderColor: 'rgba(239, 68, 68, 0.8)',
-        borderWidth: 2,
-        borderDash: [5, 5],
+        tension: 0.35,
         fill: false,
-        pointRadius: 0,
-      }] : []),
+        pointRadius: 4,
+        pointHoverRadius: 6,
+      },
+      ...(trendValues
+        ? [{
+            label: 'Trend',
+            data: trendValues,
+            type: 'line',
+            borderColor: 'rgba(239,68,68,0.85)',
+            borderWidth: 2,
+            borderDash: [6, 4],
+            fill: false,
+            pointRadius: 0,
+          }]
+        : []),
     ],
   };
 
+  /* Chart.js options */
   const options = {
     responsive: true,
-    maintainAspectRatio: true,
-    aspectRatio: 2,
-    interaction: {
-      mode: 'index',
-      intersect: false,
-    },
+    maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
     plugins: {
       legend: {
-        display: activeChartType === 'pie' || showTrend,
+        display: showTrend || activeType === 'pie',
         position: 'bottom',
-        labels: {
-          font: {
-            size: window.innerWidth < 640 ? 10 : 12,
-          },
-          padding: window.innerWidth < 640 ? 8 : 10,
-        },
-      },
-      title: {
-        display: false,
+        labels: { padding: 10, font: { size: 11 }, usePointStyle: true },
       },
       tooltip: {
-        enabled: true,
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        backgroundColor: 'rgba(13,22,41,0.95)',
         padding: 12,
-        titleFont: {
-          size: 14,
-        },
-        bodyFont: {
-          size: 13,
-        },
+        titleFont: { size: 12, weight: 'bold' },
+        bodyFont:  { size: 12 },
         callbacks: {
-          label: function(context) {
-            let label = context.dataset.label || '';
-            if (label) {
-              label += ': ';
-            }
-            if (context.parsed.y !== null) {
-              label += new Intl.NumberFormat('en-US').format(context.parsed.y);
-            }
-            return label;
-          }
-        }
+          label: (ctx) => {
+            const v = ctx.raw ?? ctx.parsed?.y ?? 0;
+            const formatted = new Intl.NumberFormat('en-IN').format(v);
+            return `  ${ctx.dataset.label}: ${formatted}`;
+          },
+        },
       },
     },
-    scales: activeChartType !== 'pie' ? {
+    scales: activeType !== 'pie' ? {
       y: {
-        beginAtZero: true,
+        beginAtZero: false,
         ticks: {
-          font: { size: 12 },
-          callback: function(value) {
-            return new Intl.NumberFormat('en-US', {
+          font: { size: 11 },
+          callback: (v) =>
+            new Intl.NumberFormat('en-IN', {
               notation: 'compact',
-              compactDisplay: 'short'
-            }).format(value);
-          }
+              compactDisplay: 'short',
+              maximumFractionDigits: 1,
+            }).format(v),
         },
+        grid: { color: 'rgba(148,163,184,0.1)' },
       },
       x: {
-        ticks: {
-          font: { size: 12 },
-        },
+        ticks: { font: { size: 10 }, maxRotation: 30 },
+        grid: { display: false },
       },
     } : undefined,
   };
 
+  /* Summary stats for current series */
+  const min = Math.min(...ds.values);
+  const max = Math.max(...ds.values);
+  const avg = ds.values.reduce((a, b) => a + b, 0) / ds.values.length;
+  const lastChange = ds.values.length >= 2
+    ? (((ds.values.at(-1) - ds.values.at(-2)) / Math.abs(ds.values.at(-2))) * 100).toFixed(1)
+    : null;
+
+  const fmtCompact = (v) =>
+    new Intl.NumberFormat('en-IN', {
+      notation: 'compact',
+      compactDisplay: 'short',
+      maximumFractionDigits: 1,
+    }).format(v);
 
   return (
-    <div className="my-3 sm:my-4 p-3 sm:p-4 rounded-lg sm:rounded-xl border shadow-sm" 
-         style={{ 
-           backgroundColor: 'var(--color-bg-elevated)',
-           borderColor: 'var(--color-border)'
-         }}>
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <h4 className="text-xs sm:text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-            📊 Data Visualization
-          </h4>
-          {yoyChange && (
-            <span
-              className="text-xs px-2 py-0.5 rounded-full font-medium"
-              style={parseFloat(yoyChange) > 0
-                ? { backgroundColor: 'var(--color-success-bg)', color: 'var(--color-success-text)' }
-                : { backgroundColor: 'var(--color-error-bg)', color: 'var(--color-error-text)' }
+    <div
+      className="my-3 sm:my-4 rounded-xl border shadow-sm animate-fadeIn overflow-hidden"
+      style={{
+        backgroundColor: 'var(--color-bg-elevated)',
+        borderColor: 'var(--color-border)',
+      }}
+    >
+      {/* ── Tab bar (one tab per series) ── */}
+      {datasets.length > 1 && (
+        <div
+          className="flex overflow-x-auto scrollbar-hide border-b"
+          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-surface)' }}
+        >
+          {datasets.map((d, i) => (
+            <button
+              key={i}
+              onClick={() => { setTab(i); setChartType('auto'); setShowTrend(false); }}
+              className="flex-shrink-0 px-3 py-2 text-xs font-medium whitespace-nowrap transition-colors border-b-2"
+              style={
+                tab === i
+                  ? { borderBottomColor: '#2563eb', color: '#2563eb', backgroundColor: 'var(--color-bg-elevated)' }
+                  : { borderBottomColor: 'transparent', color: 'var(--color-text-secondary)' }
               }
             >
-              {parseFloat(yoyChange) > 0 ? '+' : ''}{yoyChange}%
-            </span>
-          )}
-        </div>
-        
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => setChartType('line')}
-            className={`icon-btn p-1 ${activeChartType === 'line' ? 'bg-blue-100 dark:bg-blue-900' : ''}`}
-            title="Line chart"
-          >
-            <LineChart className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={() => setChartType('bar')}
-            className={`icon-btn p-1 ${activeChartType === 'bar' ? 'bg-blue-100 dark:bg-blue-900' : ''}`}
-            title="Bar chart"
-          >
-            <BarChart2 className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={() => setChartType('pie')}
-            className={`icon-btn p-1 ${activeChartType === 'pie' ? 'bg-blue-100 dark:bg-blue-900' : ''}`}
-            title="Pie chart"
-          >
-            <PieChart className="w-3.5 h-3.5" />
-          </button>
-          {activeChartType !== 'pie' && (
-            <button
-              onClick={() => setShowTrend(!showTrend)}
-              className={`icon-btn p-1 ${showTrend ? 'bg-blue-100 dark:bg-blue-900' : ''}`}
-              title="Show trend"
-            >
-              <TrendingUp className="w-3.5 h-3.5" />
+              {d.name}
             </button>
-          )}
+          ))}
         </div>
-      </div>
-      
-      <div className="h-48 sm:h-56 md:h-64">
-        {activeChartType === 'line' && <Line ref={chartRef} data={chartData} options={options} />}
-        {activeChartType === 'bar' && <Bar ref={chartRef} data={chartData} options={options} />}
-        {activeChartType === 'pie' && <Pie ref={chartRef} data={chartData} options={options} />}
-      </div>
-      
-      {/* Summary Stats */}
-      <div className="mt-3 pt-3 border-t grid grid-cols-3 gap-2 text-center" style={{ borderColor: 'var(--color-border)' }}>
-        <div>
-          <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Min</p>
-          <p className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-            {Math.min(...data.values).toLocaleString()}
-          </p>
+      )}
+
+      <div className="p-3 sm:p-4">
+        {/* ── Header row ── */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <span
+              className="text-xs font-semibold truncate"
+              style={{ color: 'var(--color-text-primary)' }}
+            >
+              {datasets.length === 1 ? ds.name : `${tab + 1} / ${datasets.length}`}
+            </span>
+            {lastChange !== null && (
+              <span
+                className="flex-shrink-0 text-xs px-1.5 py-0.5 rounded-full font-semibold"
+                style={
+                  parseFloat(lastChange) >= 0
+                    ? { backgroundColor: 'var(--color-success-bg)', color: 'var(--color-success-text)' }
+                    : { backgroundColor: 'var(--color-error-bg)',   color: 'var(--color-error-text)' }
+                }
+              >
+                {parseFloat(lastChange) >= 0 ? '▲' : '▼'} {Math.abs(parseFloat(lastChange))}%
+              </span>
+            )}
+          </div>
+
+          {/* Chart type switcher */}
+          <div className="flex items-center gap-0.5 flex-shrink-0">
+            {[
+              { id: 'line', Icon: LineChart, title: 'Line' },
+              { id: 'bar',  Icon: BarChart2, title: 'Bar'  },
+              { id: 'pie',  Icon: PieChart,  title: 'Pie'  },
+            ].map(({ id, Icon, title }) => (
+              <button
+                key={id}
+                onClick={() => setChartType(chartType === id ? 'auto' : id)}
+                title={title}
+                className="p-1.5 rounded-lg transition-colors"
+                style={
+                  activeType === id
+                    ? { backgroundColor: 'rgba(37,99,235,0.15)', color: '#2563eb' }
+                    : { color: 'var(--color-text-muted)' }
+                }
+              >
+                <Icon className="w-3.5 h-3.5" />
+              </button>
+            ))}
+            {activeType !== 'pie' && (
+              <button
+                onClick={() => setShowTrend(!showTrend)}
+                title="Trend line"
+                className="p-1.5 rounded-lg transition-colors"
+                style={
+                  showTrend
+                    ? { backgroundColor: 'rgba(37,99,235,0.15)', color: '#2563eb' }
+                    : { color: 'var(--color-text-muted)' }
+                }
+              >
+                <TrendingUp className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
-        <div>
-          <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Avg</p>
-          <p className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-            {(data.values.reduce((a, b) => a + b, 0) / data.values.length).toLocaleString(undefined, {maximumFractionDigits: 0})}
-          </p>
+
+        {/* ── Chart canvas ── */}
+        <div className="relative" style={{ height: '200px' }}>
+          {activeType === 'line' && <Line  data={chartData} options={options} />}
+          {activeType === 'bar'  && <Bar   data={chartData} options={options} />}
+          {activeType === 'pie'  && <Pie   data={chartData} options={options} />}
         </div>
-        <div>
-          <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Max</p>
-          <p className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-            {Math.max(...data.values).toLocaleString()}
-          </p>
+
+        {/* ── Summary stats ── */}
+        <div
+          className="mt-3 pt-3 border-t grid grid-cols-3 gap-2 text-center"
+          style={{ borderColor: 'var(--color-border)' }}
+        >
+          {[['Min', min], ['Avg', avg], ['Max', max]].map(([label, val]) => (
+            <div key={label}>
+              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{label}</p>
+              <p className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                {fmtCompact(val)}
+              </p>
+            </div>
+          ))}
         </div>
+
+        {/* ── Prev / Next tab navigators (mobile-friendly) ── */}
+        {datasets.length > 1 && (
+          <div className="mt-3 flex items-center justify-between">
+            <button
+              onClick={() => setTab((t) => Math.max(0, t - 1))}
+              disabled={tab === 0}
+              className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-colors disabled:opacity-30"
+              style={{ color: 'var(--color-text-secondary)' }}
+            >
+              <ChevronLeft className="w-3 h-3" /> Prev
+            </button>
+            <div className="flex gap-1">
+              {datasets.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setTab(i)}
+                  className="w-1.5 h-1.5 rounded-full transition-colors"
+                  style={{
+                    backgroundColor: i === tab ? '#2563eb' : 'var(--color-border)',
+                  }}
+                />
+              ))}
+            </div>
+            <button
+              onClick={() => setTab((t) => Math.min(datasets.length - 1, t + 1))}
+              disabled={tab === datasets.length - 1}
+              className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-colors disabled:opacity-30"
+              style={{ color: 'var(--color-text-secondary)' }}
+            >
+              Next <ChevronRight className="w-3 h-3" />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
