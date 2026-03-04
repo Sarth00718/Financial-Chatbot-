@@ -57,3 +57,9 @@ export const upload = multer({
   },
   fileFilter: fileFilter,
 });
+
+/**
+ * Upload multiple files
+ * Used for batch document processing
+ */
+export const uploadMultiple = upload.array("documents", 20); // Max 20 files at once

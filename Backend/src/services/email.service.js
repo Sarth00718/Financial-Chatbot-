@@ -136,13 +136,13 @@ export const sendWelcomeEmail = async (email, name) => {
         </div>
         <div class="content">
           <p>Hi ${name},</p>
-          <p>Welcome to FinChatBot - Your intelligent financial assistant!</p>
+          <p>Welcome to FinChatBot - Your financial document analysis platform!</p>
           <p>You can now:</p>
           <ul>
             <li>📄 Upload and analyze financial documents</li>
             <li>💬 Ask questions and get instant answers</li>
-            <li>📊 Generate insights and reports</li>
-            <li>🤖 Chat with our AI-powered assistant</li>
+            <li>📊 Generate insights and analytical reports</li>
+            <li>📈 Extract data from charts, tables, and scanned PDFs</li>
           </ul>
           <p>Get started by logging in to your account.</p>
         </div>

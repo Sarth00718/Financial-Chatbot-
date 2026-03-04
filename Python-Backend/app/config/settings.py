@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "llama-3.1-8b-instant"  # FREE Groq model
     LLM_TEMPERATURE: float = 0.0
     LLM_MAX_TOKENS: int = 2000  # Limit to save credits
+
+    # Vision Model Configuration (Groq — for chart/image/scan analysis)
+    # Current supported vision model on Groq (llama-3.2-90b-vision-preview is decommissioned)
+    VISION_MODEL: str = "meta-llama/llama-4-scout-17b-16e-instruct"
     
     # Document Processing Configuration
     CHUNK_SIZE: int = 1000

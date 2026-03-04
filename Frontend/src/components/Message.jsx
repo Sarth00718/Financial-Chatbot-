@@ -6,7 +6,7 @@
  */
 
 import { useState } from 'react';
-import { User, Bot, Info, Edit2, Trash2, Check, X } from 'lucide-react';
+import { User, BarChart3, Info, Edit2, Trash2, Check, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { SpeakerButton } from './VoiceInput';
 import DataVisualization from './DataVisualization';
@@ -140,7 +140,7 @@ const Message = ({ message, onMessageUpdate, onMessageDelete, onRegenerateRespon
             }
           >
             {isAssistant ? (
-              <Bot className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+              <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             ) : (
               <Info className="w-3.5 h-3.5 sm:w-4 sm:h-4" style={{ color: 'var(--color-info-text)' }} />
             )}

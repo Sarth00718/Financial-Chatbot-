@@ -26,6 +26,7 @@ import {
 } from 'chart.js';
 import toast from 'react-hot-toast';
 import ThemeToggle from '../components/ThemeToggle';
+import { useTheme } from '../contexts/ThemeContext';
 
 // Register Chart.js components
 ChartJS.register(
@@ -62,9 +63,17 @@ const StatCard = ({ icon: Icon, iconBg, iconColor, value, label }) => (
 const UserDashboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { isDark } = useTheme();
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
+
+  // Resolved chart colors based on current theme
+  const chartColors = {
+    textMuted:     isDark ? '#64748b' : '#94a3b8',
+    textSecondary: isDark ? '#94a3b8' : '#475569',
+    border:        isDark ? '#334155' : '#e2e8f0',
+  };
 
   useEffect(() => {
     fetchAnalytics();
@@ -161,7 +170,7 @@ const UserDashboard = () => {
       legend: {
         display: true,
         labels: {
-          color: 'var(--color-text-secondary)',
+          color: chartColors.textSecondary,
         },
       },
     },
@@ -169,18 +178,18 @@ const UserDashboard = () => {
       y: {
         beginAtZero: true,
         ticks: {
-          color: 'var(--color-text-muted)',
+          color: chartColors.textMuted,
         },
         grid: {
-          color: 'var(--color-border)',
+          color: chartColors.border,
         },
       },
       x: {
         ticks: {
-          color: 'var(--color-text-muted)',
+          color: chartColors.textMuted,
         },
         grid: {
-          color: 'var(--color-border)',
+          color: chartColors.border,
         },
       },
     },

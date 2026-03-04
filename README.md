@@ -50,8 +50,11 @@ FinChatBot is a cutting-edge, full-stack AI platform that revolutionizes how you
 
 #### 📄 Document Intelligence
 - **PDF, Excel, CSV** support
+- **OCR for scanned PDFs** with Tesseract
+- **Table extraction** from financial documents
+- **Vision AI** for chart and image analysis
 - **RAG (Retrieval-Augmented Generation)** for accuracy
-- **Vector embeddings** with FAISS
+- **Vector embeddings** with Pinecone
 - **Multi-document analysis**
 - **Automatic processing** and indexing
 
@@ -62,7 +65,10 @@ FinChatBot is a cutting-edge, full-stack AI platform that revolutionizes how you
 
 #### 📊 Data Visualization
 - **Auto-generate charts** from financial data
-- **Interactive visualizations** with Chart.js
+- **Interactive visualizations** with Recharts
+- **Chart type switching** (Line, Bar, Pie)
+- **Trend lines** with linear regression
+- **YoY change indicators**
 - **Export reports** with charts included
 - **Trend analysis** and insights
 - **Custom dashboards**
@@ -88,6 +94,16 @@ FinChatBot is a cutting-edge, full-stack AI platform that revolutionizes how you
 - **♿ Accessible**: WCAG-compliant interface
 - **⚡ Fast**: Optimized performance with lazy loading
 - **🎭 Intuitive**: Clean, modern UI with minimal learning curve
+
+### 🚀 Advanced Features (NEW in v2.0)
+
+- **🔍 OCR Support**: Extract text from scanned PDFs and images with Tesseract
+- **📊 Table Extraction**: Automatic table detection and extraction from PDFs
+- **🖼️ Vision AI**: Analyze charts and images using Groq's vision model
+- **📈 Advanced Charts**: Interactive visualizations with trend lines and YoY comparisons
+- **✏️ Message Editing**: Edit messages and regenerate AI responses
+- **🎤 Voice Input**: Hands-free interaction with voice commands
+- **🎨 Smart Suggestions**: Context-aware question suggestions
 
 ---
 
@@ -120,7 +136,7 @@ FinChatBot is a cutting-edge, full-stack AI platform that revolutionizes how you
 | **Backend** | Node.js, Express, MongoDB | API, authentication, data management |
 | **AI Engine** | Python, FastAPI, LangChain | Document processing, AI responses |
 | **Database** | MongoDB | User data, conversations, documents |
-| **Vector Store** | FAISS | Document embeddings for RAG |
+| **Vector Store** | Pinecone | Document embeddings for RAG |
 | **AI Model** | Groq (Llama 3.1) | Natural language understanding |
 | **Real-time** | Socket.IO | Live chat updates |
 | **Auth** | JWT, bcrypt | Secure authentication |
@@ -135,6 +151,8 @@ FinChatBot is a cutting-edge, full-stack AI platform that revolutionizes how you
 - **Python** 3.9+
 - **MongoDB** (local or Atlas)
 - **Groq API Key** (FREE from [console.groq.com](https://console.groq.com))
+- **Pinecone API Key** (FREE from [pinecone.io](https://www.pinecone.io))
+- **Tesseract OCR** (for scanned PDF support)
 
 ### Installation (5 Minutes)
 
@@ -618,19 +636,34 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📈 Roadmap
 
+### Version 2.0 (COMPLETED ✅)
+- [x] Enhanced OCR for scanned PDFs
+- [x] Table extraction from PDFs
+- [x] Vision AI for charts and images
+- [x] Advanced interactive visualizations
+- [x] Message editing with regeneration
+- [x] Chat renaming functionality
+- [x] Voice input/output
+
 ### Version 2.1 (Coming Soon)
-- [ ] Multi-language support
-- [ ] Advanced analytics dashboard
-- [ ] Custom AI model fine-tuning
+- [ ] Multi-document comparison
+- [ ] Executive summarization
+- [ ] Smart financial templates
 - [ ] Batch document processing
-- [ ] API rate limiting dashboard
+- [ ] Export & share functionality
+- [ ] Bookmarking and tagging system
+- [ ] Advanced filtered search
+- [ ] Multi-language support
 
 ### Version 3.0 (Future)
 - [ ] Mobile apps (iOS/Android)
 - [ ] Collaborative workspaces
-- [ ] Advanced data visualization
-- [ ] Integration with external APIs
-- [ ] Custom plugins system
+- [ ] Scheduled reports
+- [ ] Webhook integrations
+- [ ] Team collaboration features
+- [ ] Document versioning
+- [ ] Audit logs
+- [ ] Custom branding
 
 ---
 

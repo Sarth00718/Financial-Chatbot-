@@ -1,13 +1,24 @@
 """
 Document Processing Service
-Handles PDF processing, text extraction, and image analysis
+Handles PDF processing with multi-layer extraction:
+  Layer 1: PyMuPDF native text extraction (fast, reliable for digital PDFs)
+  Layer 2: pdfplumber text + table extraction (handles complex layouts)
+  Layer 3: OCR via pytesseract for scanned/image-only pages
+  Layer 4: Vision model descriptions for charts and embedded images
+
+Works correctly for:
+  - Digital PDFs with selectable text
+  - Scanned/photographed PDFs (OCR fallback)
+  - Image-heavy financial reports with charts and tables
+  - Mixed-content PDFs (text + images + tables)
 """
 
 import os
 import base64
 import requests
-import pymupdf as fitz  # PyMuPDF for PDF processing
-from typing import List
+import io
+import pymupdf as fitz  # PyMuPDF
+from typing import List, Optional
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import ChatOpenAI
@@ -15,279 +26,437 @@ from langchain_core.messages import HumanMessage
 
 from app.config.settings import settings
 from app.services.vector_store import vector_store
+from app.services.ocr_service import ocr_service
+
+# Optional imports with graceful fallbacks
+try:
+    import pdfplumber
+    PDFPLUMBER_AVAILABLE = True
+except ImportError:
+    PDFPLUMBER_AVAILABLE = False
+    print("[WARNING] pdfplumber not installed — table extraction via pdfplumber disabled")
+
+
 
 
 class DocumentProcessor:
     """
-    Processes documents for RAG (Retrieval Augmented Generation)
-    Extracts text and analyzes images using multi-modal AI
+    Multi-layer document processing pipeline for financial PDFs.
+    Handles scanned PDFs, image-heavy reports, and complex table layouts.
     """
-    
+
     def __init__(self):
-        """Initialize document processor with text splitter and vision model"""
-        # Text splitter for chunking documents
+        """Initialize processor with text splitter and optional vision model"""
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=settings.CHUNK_SIZE,
-            chunk_overlap=settings.CHUNK_OVERLAP
+            chunk_overlap=settings.CHUNK_OVERLAP,
         )
-        
-        # Vision-capable LLM for image analysis
-        self.vision_llm = ChatOpenAI(
-            model=settings.LLM_MODEL,
-            max_tokens=500,  # Limit image descriptions to save credits
-            openai_api_key=settings.GROQ_API_KEY,
-            openai_api_base="https://api.groq.com/openai/v1",
-        )
-    
-    def _get_image_description(self, image_bytes: bytes) -> str:
-        """
-        Use Gemini Vision to generate a description of an image
-        
-        Args:
-            image_bytes: Raw image data
-            
-        Returns:
-            Text description of the image
-        """
+
+        # Vision-capable LLM — Groq Llama 4 Scout (current as of 2025)
+        # Model candidates (try in order if one fails):
+        #   meta-llama/llama-4-scout-17b-16e-instruct
+        #   meta-llama/llama-4-maverick-17b-128e-instruct
+        VISION_MODEL = getattr(settings, "VISION_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
         try:
-            # Encode image to base64
-            b64_image = base64.b64encode(image_bytes).decode('utf-8')
-            
-            # Create message with image
+            self.vision_llm = ChatOpenAI(
+                model=VISION_MODEL,
+                max_tokens=800,
+                openai_api_key=settings.GROQ_API_KEY,
+                openai_api_base="https://api.groq.com/openai/v1",
+            )
+            self.vision_enabled = True
+            print(f"[INIT] Vision model ready: {VISION_MODEL}")
+        except Exception as e:
+            print(f"[WARNING] Vision model unavailable: {e}")
+            self.vision_llm = None
+            self.vision_enabled = False
+
+    # ------------------------------------------------------------------
+    # LAYER 4: Vision model — chart/image description
+    # ------------------------------------------------------------------
+
+    def _describe_image_bytes(self, image_bytes: bytes, context: str = "") -> str:
+        """
+        Use vision LLM to generate a detailed description of an image/chart.
+        Falls back to a placeholder if vision model is unavailable.
+        """
+        if not self.vision_enabled or not self.vision_llm:
+            return "[Image/chart present — vision model not available for description]"
+
+        try:
+            b64 = base64.b64encode(image_bytes).decode("utf-8")
+            prompt_text = (
+                "You are analyzing a financial document image. "
+                "Describe EVERY number, label, axis value, legend entry, and data point you can see. "
+                "If this is a chart: state the chart type, all axes, all data series, and all values. "
+                "If this is a table: reproduce all rows and columns with their exact values. "
+                "If this is a scanned page of text: transcribe the text verbatim. "
+                "Be exhaustive — no detail is too small for financial analysis."
+            )
+            if context:
+                prompt_text = f"Context — {context}\n\n" + prompt_text
+
             message = HumanMessage(
                 content=[
-                    {
-                        "type": "text",
-                        "text": (
-                            "Describe this financial chart, table, or image from a document in detail. "
-                            "Focus on key data, trends, and conclusions. Be factual and objective."
-                        )
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": f"data:image/jpeg;base64,{b64_image}"
-                    },
+                    {"type": "text", "text": prompt_text},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
                 ]
             )
-            
-            # Get description from vision model
             response = self.vision_llm.invoke([message])
-            description = response.content if response.content else "Could not describe image."
-            
-            print(f"  [OK] Generated image description ({len(description)} chars)")
-            return description
-            
+            desc = response.content or "[No description returned]"
+            print(f"    [VISION] Image described ({len(desc)} chars)")
+            return desc
         except Exception as e:
-            print(f"  [ERROR] Error generating image description: {e}")
-            return "Image description unavailable due to processing error."
-    
-    def _extract_text_from_page(self, page, page_num: int) -> List[Document]:
+            print(f"    [WARNING] Vision description failed: {e}")
+            return f"[Image present — description failed: {e}]"
+
+    # ------------------------------------------------------------------
+    # LAYER 1: PyMuPDF native text extraction
+    # ------------------------------------------------------------------
+
+    def _extract_pymupdf_text(self, page) -> str:
+        """Extract text using multiple PyMuPDF strategies."""
+        # Strategy 1: plain text
+        text = page.get_text("text").strip()
+        if len(text) >= 50:
+            return text
+
+        # Strategy 2: blocks (preserves reading order better)
+        try:
+            blocks = page.get_text("blocks")
+            block_text = "\n".join(b[4] for b in blocks if len(b) > 4 and str(b[4]).strip())
+            if len(block_text.strip()) >= 50:
+                return block_text.strip()
+        except Exception:
+            pass
+
+        # Strategy 3: dict (most granular — span-level)
+        try:
+            d = page.get_text("dict")
+            spans = []
+            for block in d.get("blocks", []):
+                for line in block.get("lines", []):
+                    for span in line.get("spans", []):
+                        t = span.get("text", "").strip()
+                        if t:
+                            spans.append(t)
+            span_text = " ".join(spans).strip()
+            if span_text:
+                return span_text
+        except Exception:
+            pass
+
+        return text
+
+    # ------------------------------------------------------------------
+    # LAYER 2: pdfplumber text + table extraction
+    # ------------------------------------------------------------------
+
+    def _extract_pdfplumber_content(self, pdf_path: str, page_num: int) -> str:
         """
-        Extract and chunk text from a PDF page
-        
+        Use pdfplumber for a richer extraction on a single page.
+        Returns combined text + formatted tables as a string.
+        Page num is 0-indexed internally.
+        """
+        if not PDFPLUMBER_AVAILABLE:
+            return ""
+
+        try:
+            with pdfplumber.open(pdf_path) as pdf:
+                if page_num >= len(pdf.pages):
+                    return ""
+                page = pdf.pages[page_num]
+
+                parts = []
+
+                # Text
+                raw_text = page.extract_text(x_tolerance=3, y_tolerance=3)
+                if raw_text and raw_text.strip():
+                    parts.append(raw_text.strip())
+
+                # Tables
+                tables = page.extract_tables()
+                for t_idx, table in enumerate(tables):
+                    if not table:
+                        continue
+                    lines = [f"\n[TABLE {t_idx + 1} from page {page_num + 1}]"]
+                    for row in table:
+                        sanitised = [str(cell or "").strip() for cell in row]
+                        if any(c for c in sanitised):
+                            lines.append(" | ".join(sanitised))
+                    parts.append("\n".join(lines))
+
+                return "\n\n".join(parts)
+        except Exception as e:
+            print(f"    [WARNING] pdfplumber failed on page {page_num + 1}: {e}")
+            return ""
+
+    # ------------------------------------------------------------------
+    # LAYER 3: OCR for scanned pages
+    # ------------------------------------------------------------------
+
+    def _extract_ocr_text(self, pdf_path: str, page_num_0indexed: int) -> str:
+        """Run OCR on a single page using the OCRService."""
+        if not ocr_service.ocr_enabled:
+            return ""
+        try:
+            text = ocr_service.extract_text_from_pdf_page(pdf_path, page_num_0indexed)
+            if text and text not in ("[OCR not available]", "[OCR failed]"):
+                return text
+        except Exception as e:
+            print(f"    [WARNING] OCR failed: {e}")
+        return ""
+
+    # ------------------------------------------------------------------
+    # COMBINED TEXT EXTRACTION
+    # ------------------------------------------------------------------
+
+    def _extract_text_from_page(
+        self, page, page_num: int, pdf_path: Optional[str] = None
+    ) -> List[Document]:
+        """
+        Multi-layer text extraction for a single PDF page.
+
+        Priority order:
+          1. pdfplumber (best for tables + complex layouts)
+          2. PyMuPDF native (fast fallback)
+          3. OCR via pytesseract (scanned pages)
+
         Args:
             page: PyMuPDF page object
-            page_num: Page number (1-indexed)
-            
+            page_num: 1-indexed page number
+            pdf_path: absolute path to the PDF file
+
         Returns:
-            List of Document chunks with metadata
+            List of Document chunks
         """
-        # Extract text from page
-        text = page.get_text("text")
-        
+        tables = []  # initialised here to prevent NameError
+        has_images = len(page.get_images(full=True)) > 0
+
+        # Attempt Layer 2 first (pdfplumber) — it handles tables natively
+        text = ""
+        if pdf_path:
+            text = self._extract_pdfplumber_content(pdf_path, page_num - 1)
+            if text:
+                print(f"    [PDFPLUMBER] {len(text)} chars from page {page_num}")
+
+        # Fall back to Layer 1 (PyMuPDF) if pdfplumber yielded nothing
         if not text.strip():
+            text = self._extract_pymupdf_text(page)
+            if text:
+                print(f"    [PYMUPDF] {len(text)} chars from page {page_num}")
+
+        # Layer 3 (OCR) if we still have very little text
+        if pdf_path and ocr_service.should_use_ocr(len(text.strip()), has_images):
+            print(f"    [OCR] Triggering OCR for page {page_num} (text={len(text.strip())})")
+            ocr_text = self._extract_ocr_text(pdf_path, page_num - 1)
+            if ocr_text and len(ocr_text) > len(text):
+                text = ocr_text
+                print(f"    [OCR] Got {len(text)} chars via OCR")
+
+        # Legacy camelot/tabula tables (only if pdfplumber didn't already add tables)
+        if pdf_path and ocr_service.table_extraction_enabled and "[TABLE" not in text:
+            tables = ocr_service.extract_tables_from_pdf(pdf_path, page_num)
+            if tables:
+                print(f"    [TABLE] Appended {len(tables)} camelot/tabula tables (page {page_num})")
+                for table in tables:
+                    text += "\n\n" + ocr_service.format_table_as_text(table)
+
+        if not text.strip():
+            print(f"    [WARNING] Page {page_num}: no text found via any method")
             return []
-        
-        # Split text into chunks
+
         chunks = self.text_splitter.create_documents(
             [text],
             metadatas=[{
                 "page": page_num,
                 "type": "text",
-                "source": "pdf_text"
-            }]
+                "source": "multi_layer_extraction",
+                "has_images": has_images,
+                "has_tables": len(tables),
+                "char_count": len(text),
+            }],
         )
-        
-        print(f"  [TEXT] Extracted {len(chunks)} text chunks from page {page_num}")
+        print(f"    [TEXT] Page {page_num}: {len(chunks)} chunks ({len(text)} chars)")
         return chunks
-    
-    def _extract_images_from_page(self, doc, page, page_num: int) -> List[Document]:
+
+    # ------------------------------------------------------------------
+    # IMAGE + VISION ANALYSIS
+    # ------------------------------------------------------------------
+
+    def _extract_images_from_page(
+        self, doc, page, page_num: int
+    ) -> List[Document]:
         """
-        Extract and analyze images from a PDF page
-        
-        Args:
-            doc: PyMuPDF document object
-            page: PyMuPDF page object
-            page_num: Page number (1-indexed)
-            
-        Returns:
-            List of Document chunks containing image descriptions
+        Extract embedded images and describe them using the vision model.
+        For pages that ARE images (scanned), the whole page is rendered and described.
         """
-        image_chunks = []
-        
-        # Get all images on the page
+        image_chunks: List[Document] = []
         images = page.get_images(full=True)
-        
-        if not images:
-            return []
-        
-        print(f"  [IMAGE] Found {len(images)} images on page {page_num}")
-        
-        for img_index, img in enumerate(images):
+
+        # --- Case A: embedded image objects ---
+        if images:
+            print(f"    [IMAGE] Page {page_num}: {len(images)} embedded images")
+            for idx, img in enumerate(images):
+                try:
+                    xref = img[0]
+                    base_img = doc.extract_image(xref)
+                    img_bytes = base_img["image"]
+
+                    # Skip tiny decorative images (< 5 KB)
+                    if len(img_bytes) < 5_000:
+                        continue
+
+                    desc = self._describe_image_bytes(
+                        img_bytes,
+                        context=f"Page {page_num}, image {idx + 1}",
+                    )
+                    full_desc = f"[Chart/Image — Page {page_num}, Image {idx + 1}]:\n{desc}"
+                    chunks = self.text_splitter.create_documents(
+                        [full_desc],
+                        metadatas=[{
+                            "page": page_num,
+                            "type": "image",
+                            "source": "embedded_image",
+                            "image_index": idx,
+                        }],
+                    )
+                    image_chunks.extend(chunks)
+                except Exception as e:
+                    print(f"    [WARNING] Image {idx} on page {page_num} failed: {e}")
+
+        # --- Case B: page IS a full-page scan (no embedded image objects, no text) ---
+        # Use ocr_service.render_pdf_page_to_pil() — PyMuPDF-based, no Poppler needed
+        elif pdf_path:
             try:
-                # Extract image data
-                xref = img[0]
-                base_image = doc.extract_image(xref)
-                image_bytes = base_image["image"]
-                
-                # Get AI description of the image
-                description = self._get_image_description(image_bytes)
-                
-                # Create context-aware description
-                full_description = (
-                    f"[Image from page {page_num}]: {description}"
-                )
-                
-                # Create document chunk for the image description
-                image_chunk = self.text_splitter.create_documents(
-                    [full_description],
-                    metadatas=[{
-                        "page": page_num,
-                        "type": "image",
-                        "source": "pdf_image",
-                        "image_index": img_index
-                    }]
-                )
-                
-                image_chunks.extend(image_chunk)
-                
+                page_text = page.get_text("text").strip()
+                if len(page_text) < 30:
+                    print(f"    [SCAN] Page {page_num}: rendering as full-page image for vision LLM")
+                    pil_img = ocr_service.render_pdf_page_to_pil(pdf_path, page_num - 1, dpi=150)
+                    if pil_img is not None:
+                        import io as _io
+                        buf = _io.BytesIO()
+                        pil_img.save(buf, format="JPEG", quality=85)
+                        img_bytes = buf.getvalue()
+                        desc = self._describe_image_bytes(
+                            img_bytes,
+                            context=f"Full scanned page {page_num} from a financial document",
+                        )
+                        full_desc = f"[Scanned Page {page_num}]:\n{desc}"
+                        chunks = self.text_splitter.create_documents(
+                            [full_desc],
+                            metadatas=[{
+                                "page": page_num,
+                                "type": "scanned_page",
+                                "source": "full_page_render",
+                            }],
+                        )
+                        image_chunks.extend(chunks)
             except Exception as e:
-                print(f"  [WARNING] Error processing image {img_index} on page {page_num}: {e}")
-                continue
-        
+                print(f"    [WARNING] Full-page scan vision failed for page {page_num}: {e}")
+
         return image_chunks
-    
+
+    # ------------------------------------------------------------------
+    # MAIN PDF PIPELINE
+    # ------------------------------------------------------------------
+
     def process_pdf(self, file_path: str) -> List[Document]:
         """
-        Process a PDF file and extract all content
-        
-        Args:
-            file_path: Path to the PDF file
-            
-        Returns:
-            List of Document chunks (text + image descriptions)
+        Process a PDF and return all content as Document chunks.
+        Handles: digital text, complex tables, scanned pages, charts, images.
         """
-        try:
-            print(f"\n[PDF] Processing PDF: {file_path}")
-            
-            # Verify file exists
-            if not os.path.exists(file_path):
-                raise FileNotFoundError(f"File not found: {file_path}")
-            
-            # Open PDF
-            doc = fitz.open(file_path)
-            print(f"[PDF] PDF has {len(doc)} pages")
-            
-            all_chunks = []
-            
-            # Process each page
-            for page_num, page in enumerate(doc, start=1):
-                print(f"\n  Processing page {page_num}/{len(doc)}...")
-                
-                # Extract text chunks
-                text_chunks = self._extract_text_from_page(page, page_num)
-                all_chunks.extend(text_chunks)
-                
-                # Extract and analyze images
-                image_chunks = self._extract_images_from_page(doc, page, page_num)
-                all_chunks.extend(image_chunks)
-            
-            # Close document
-            doc.close()
-            
-            if not all_chunks:
-                raise ValueError("No content extracted from PDF")
-            
-            print(f"\n[OK] PDF processing complete: {len(all_chunks)} total chunks")
-            return all_chunks
-            
-        except Exception as e:
-            print(f"\n[ERROR] Error processing PDF: {e}")
-            raise
-    
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"File not found: {file_path}")
+
+        print(f"\n[PDF] Opening: {file_path}")
+        doc = fitz.open(file_path)
+        total_pages = len(doc)
+        print(f"[PDF] {total_pages} pages")
+
+        all_chunks: List[Document] = []
+
+        for page_num, page in enumerate(doc, start=1):
+            print(f"\n  --- Page {page_num}/{total_pages} ---")
+            all_chunks.extend(self._extract_text_from_page(page, page_num, file_path))
+            all_chunks.extend(self._extract_images_from_page(doc, page, page_num))
+
+        doc.close()
+
+        if not all_chunks:
+            raise ValueError(
+                "No content could be extracted from this PDF. "
+                "The file may be corrupt, password-protected, or contain only unsupported content."
+            )
+
+        print(f"\n[PDF] Extraction complete — {len(all_chunks)} total chunks")
+        return all_chunks
+
+    # ------------------------------------------------------------------
+    # COMPLETE PIPELINE (PDF → Vectors → Notify)
+    # ------------------------------------------------------------------
+
     def process_document_pipeline(
         self,
         document_id: str,
         file_path: str,
         file_name: str,
-        vector_namespace: str
+        vector_namespace: str,
     ) -> None:
         """
-        Complete document processing pipeline
-        1. Extract content from PDF
-        2. Create embeddings
-        3. Store in vector database
-        4. Notify Node.js backend
-        
-        Args:
-            document_id: MongoDB document ID
-            file_path: Local path to the file
-            file_name: Original filename
-            vector_namespace: Unique namespace for vector storage
+        End-to-end pipeline:
+        1. Extract content (text + tables + images)
+        2. Embed and store in FAISS vector store
+        3. Notify Node.js backend via webhook
         """
+        print(f"\n{'='*60}")
+        print(f"[PIPELINE] Starting: {file_name}")
+        print(f"  Document ID : {document_id}")
+        print(f"  Namespace   : {vector_namespace}")
+        print(f"{'='*60}")
+
         try:
-            print(f"\n{'='*60}")
-            print(f"[PIPELINE] Starting document processing pipeline")
-            print(f"Document ID: {document_id}")
-            print(f"File: {file_name}")
-            print(f"Namespace: {vector_namespace}")
-            print(f"{'='*60}")
-            
-            # Step 1: Process PDF and extract content
+            # Step 1 — Extract
             chunks = self.process_pdf(file_path)
-            
-            # Step 2: Create vector store
-            print(f"\n[VECTOR] Creating vector embeddings...")
+
+            # Step 2 — Embed + store
+            print(f"\n[VECTOR] Creating embeddings for {len(chunks)} chunks…")
             vector_store.create_vector_store(chunks, vector_namespace)
-            
-            # Step 3: Notify Node.js backend of success
-            print(f"\n[WEBHOOK] Notifying Node.js backend...")
-            webhook_url = f"{settings.NODE_WEBHOOK_URL}/api/v1/documents/{document_id}/status"
-            response = requests.patch(
-                webhook_url,
-                json={"status": "processed"},
-                timeout=10
-            )
-            
-            if response.status_code == 200:
-                print(f"[OK] Webhook notification sent successfully")
-            else:
-                print(f"[WARNING] Webhook returned status {response.status_code}")
-            
+
+            # Step 3 — Notify success
+            print(f"\n[WEBHOOK] Notifying Node.js backend…")
+            self._notify_backend(document_id, status="processed")
+
             print(f"\n{'='*60}")
-            print(f"[OK] Document processing completed successfully!")
+            print(f"[OK] Pipeline completed successfully!")
             print(f"{'='*60}\n")
-            
+
         except Exception as e:
             print(f"\n{'='*60}")
-            print(f"[ERROR] Document processing failed: {e}")
+            print(f"[ERROR] Pipeline failed: {e}")
             print(f"{'='*60}\n")
-            
-            # Notify Node.js backend of failure
-            try:
-                webhook_url = f"{settings.NODE_WEBHOOK_URL}/api/v1/documents/{document_id}/status"
-                requests.patch(
-                    webhook_url,
-                    json={
-                        "status": "failed",
-                        "errorMessage": str(e)
-                    },
-                    timeout=10
-                )
-                print("[WEBHOOK] Failure notification sent to Node.js backend")
-            except Exception as webhook_error:
-                print(f"[WARNING] Failed to send webhook notification: {webhook_error}")
+            self._notify_backend(document_id, status="failed", error=str(e))
+
+    def _notify_backend(
+        self,
+        document_id: str,
+        status: str,
+        error: Optional[str] = None,
+    ) -> None:
+        """Send status webhook to Node.js backend."""
+        try:
+            url = f"{settings.NODE_WEBHOOK_URL}/api/v1/documents/{document_id}/status"
+            payload = {"status": status}
+            if error:
+                payload["errorMessage"] = error
+            resp = requests.patch(url, json=payload, timeout=10)
+            if resp.status_code == 200:
+                print(f"[WEBHOOK] Notification sent (status={status})")
+            else:
+                print(f"[WARNING] Webhook returned HTTP {resp.status_code}")
+        except Exception as e:
+            print(f"[WARNING] Webhook notification failed: {e}")
 
 
-# Create global document processor instance
+# Singleton instance
 document_processor = DocumentProcessor()

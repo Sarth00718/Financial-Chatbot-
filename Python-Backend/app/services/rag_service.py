@@ -311,10 +311,10 @@ class RAGService:
             AI-generated answer
         """
         print(f"\n{'='*60}")
-        print(f"📥 New Query")
-        print(f"Mode: {feature_mode}")
-        print(f"Question: {question[:100]}...")
-        print(f"Documents: {len(namespaces)}")
+        print(f"[QUERY] New Request")
+        print(f"  Mode: {feature_mode}")
+        print(f"  Question: {question[:100]}...")
+        print(f"  Documents: {len(namespaces)}")
         print(f"{'='*60}")
         
         try:
@@ -344,14 +344,7 @@ class RAGService:
             
         except Exception as e:
             print(f"\n[ERROR] Error generating answer: {e}")
-            # Print full traceback for debugging
             traceback.print_exc()
-            try:
-                with open("error_traceback.log", "a", encoding="utf-8") as fh:
-                    fh.write(traceback.format_exc())
-                    fh.write("\n---\n")
-            except Exception:
-                pass
             return (
                 "I encountered an error while processing your question. "
                 "Please try again or rephrase your question."

@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, MessageSquare, Trash2, X, Search, Bot, Edit2, Check } from 'lucide-react';
+import { Plus, MessageSquare, Trash2, X, Search, BarChart3, Edit2, Check } from 'lucide-react';
 import { conversationAPI } from '../utils/api';
 import ThemeToggle from './ThemeToggle';
 import toast from 'react-hot-toast';
@@ -107,11 +107,11 @@ const Sidebar = ({
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center shadow-lg flex-shrink-0">
-                <Bot className="w-5 h-5 text-white" />
+                <BarChart3 className="w-5 h-5 text-white" />
               </div>
               <div>
                 <h2 className="text-base font-bold gradient-text">FinChatBot</h2>
-                <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Financial AI</p>
+                <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Financial Analysis</p>
               </div>
             </div>
 
@@ -346,7 +346,7 @@ const Sidebar = ({
         {/* ---- Footer ---- */}
         <div className="p-4 border-t text-center" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-elevated)' }}>
           <p className="text-xs font-bold gradient-text">FinChatBot v2.0</p>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>Powered by Groq AI</p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>Financial Document Analysis</p>
         </div>
       </div>
 

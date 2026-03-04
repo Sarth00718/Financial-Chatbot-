@@ -28,9 +28,19 @@ python-dotenv==1.0.1
 # HTTP Requests
 requests==2.32.3
 
-# PDF Processing
+# PDF Parsing and Processing
 pypdf==5.0.1
 pymupdf==1.25.2
+pdfplumber==0.12.0
+
+# OCR, Image and Table Extraction
+numpy==1.26.4
+pytesseract==0.3.10
+pdf2image==1.17.0
+Pillow==10.4.0
+opencv-python==4.10.0.84
+camelot-py[cv]==0.11.0
+tabula-py==2.9.3
 
 # File Upload Support
 python-multipart==0.0.12

@@ -6,7 +6,7 @@
 
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Bot } from 'lucide-react';
+import { BarChart3 } from 'lucide-react';
 
 const ProtectedRoute = ({ children, adminOnly = false }) => {
   const { isAuthenticated, loading, isAdmin } = useAuth();
@@ -15,14 +15,12 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
     return (
       <div
         className="min-h-screen flex items-center justify-center"
-        style={{ backgroundColor: 'var(--color-bg-page)', transition: 'background-color 0.25s ease' }}
+        style={{ backgroundColor: 'var(--color-bg-page)', transition: 'background-color 0.3s ease' }}
       >
         <div className="text-center animate-fadeIn">
-          {/* Animated logo */}
-          <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center shadow-xl">
-            <Bot className="w-8 h-8 text-white" />
+          <div className="brand-icon mx-auto mb-6">
+            <BarChart3 className="w-8 h-8 text-white" />
           </div>
-          {/* Spinner */}
           <div
             className="w-8 h-8 border-4 border-t-transparent rounded-full animate-spin mx-auto mb-4"
             style={{ borderColor: 'var(--color-border)', borderTopColor: '#2563eb' }}

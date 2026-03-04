@@ -1,24 +1,71 @@
 /**
  * Feature Selector Component
  * Horizontal compact tab switcher for AI mode selection.
- * Fully themed via CSS custom properties.
+ * Uses useTheme hook for correct dark/light mode background colors.
  */
 
 import { Brain, FileText, TrendingUp, MessageCircle } from 'lucide-react';
+import { useTheme } from '../contexts/ThemeContext';
 
 const FEATURES = [
-  { id: 'Smart_Chat',          name: 'Smart Chat',   shortName: 'Chat',    icon: Brain,         accent: '#2563eb', lightBg: '#dbeafe', darkBg: '#1e3a5f', lightText: '#1d4ed8', darkText: '#93c5fd' },
-  { id: 'Document_Analysis',   name: 'Documents',    shortName: 'Docs',    icon: FileText,      accent: '#16a34a', lightBg: '#dcfce7', darkBg: '#052e16', lightText: '#15803d', darkText: '#4ade80' },
-  { id: 'Analytical_Insights', name: 'Insights',     shortName: 'Insights',icon: TrendingUp,    accent: '#7c3aed', lightBg: '#ede9fe', darkBg: '#2e1065', lightText: '#6d28d9', darkText: '#c4b5fd' },
-  { id: 'General_Conversation',name: 'General',      shortName: 'General', icon: MessageCircle, accent: '#475569', lightBg: '#f1f5f9', darkBg: '#1e293b', lightText: '#334155', darkText: '#94a3b8' },
+  {
+    id: 'Smart_Chat',
+    name: 'Smart Chat',
+    shortName: 'Chat',
+    icon: Brain,
+    accent: '#2563eb',
+    lightBg: '#dbeafe',
+    darkBg: '#1e3a5f',
+    lightText: '#1d4ed8',
+    darkText: '#93c5fd',
+  },
+  {
+    id: 'Document_Analysis',
+    name: 'Documents',
+    shortName: 'Docs',
+    icon: FileText,
+    accent: '#16a34a',
+    lightBg: '#dcfce7',
+    darkBg: '#052e16',
+    lightText: '#15803d',
+    darkText: '#4ade80',
+  },
+  {
+    id: 'Analytical_Insights',
+    name: 'Insights',
+    shortName: 'Insights',
+    icon: TrendingUp,
+    accent: '#7c3aed',
+    lightBg: '#ede9fe',
+    darkBg: '#2e1065',
+    lightText: '#6d28d9',
+    darkText: '#c4b5fd',
+  },
+  {
+    id: 'General_Conversation',
+    name: 'General',
+    shortName: 'General',
+    icon: MessageCircle,
+    accent: '#475569',
+    lightBg: '#f1f5f9',
+    darkBg: '#1e293b',
+    lightText: '#334155',
+    darkText: '#94a3b8',
+  },
 ];
 
 const FeatureSelector = ({ selectedFeature, onFeatureChange, disabled }) => {
+  const { isDark } = useTheme();
+
   return (
     <div className="flex items-center gap-1 sm:gap-1.5">
       {FEATURES.map((feature) => {
-        const Icon      = feature.icon;
-        const isActive  = selectedFeature === feature.id;
+        const Icon = feature.icon;
+        const isActive = selectedFeature === feature.id;
+
+        // Pick correct color based on current theme
+        const activeBg   = isDark ? feature.darkBg   : feature.lightBg;
+        const activeText = isDark ? feature.darkText  : feature.lightText;
 
         return (
           <button
@@ -33,11 +80,9 @@ const FeatureSelector = ({ selectedFeature, onFeatureChange, disabled }) => {
               ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
             `}
             style={{
-              backgroundColor: isActive ? 'var(--feature-active-bg)' : 'transparent',
-              borderColor:     isActive ? feature.accent : 'var(--color-border)',
-              color:           isActive ? 'var(--feature-active-text)' : 'var(--color-text-secondary)',
-              '--feature-active-bg':   `var(--is-dark, ${feature.darkBg}) var(--is-light, ${feature.lightBg})`,
-              '--feature-active-text': `var(--is-dark, ${feature.darkText}) var(--is-light, ${feature.lightText})`,
+              backgroundColor: isActive ? activeBg : 'transparent',
+              borderColor: isActive ? feature.accent : 'var(--color-border)',
+              color: isActive ? activeText : 'var(--color-text-secondary)',
             }}
             onMouseEnter={(e) => {
               if (!isActive && !disabled) {

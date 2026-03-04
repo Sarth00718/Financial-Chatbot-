@@ -15,7 +15,7 @@ from app.config.settings import settings
 
 # Create FastAPI application
 app = FastAPI(
-    title="FinChatBot AI Service",
+    title="Financial Analysis AI Service",
     description="Local RAG-based Financial Document Query System",
     version="2.0.0",
     docs_url="/docs",  # Swagger UI
@@ -43,7 +43,7 @@ async def root():
     Returns basic service information
     """
     return {
-        "service": "FinChatBot Python AI Service",
+        "service": "Financial Analysis Python Service",
         "version": "2.0.0",
         "status": "running",
         "description": "Local RAG-based Financial Document Query System",
@@ -59,7 +59,7 @@ async def startup_event():
     Runs when the application starts
     """
     print("\n" + "="*60)
-    print("FinChatBot Python AI Service Starting...")
+    print("Financial Analysis Python Service Starting...")
     print("="*60)
     print(f"Vector Store Path: {settings.VECTOR_STORE_PATH}")
     print(f"LLM Model: {settings.LLM_MODEL}")
@@ -78,7 +78,7 @@ async def shutdown_event():
     Runs when the application stops
     """
     print("\n" + "="*60)
-    print("FinChatBot Python AI Service Shutting Down...")
+    print("Financial Analysis Python Service Shutting Down...")
     print("="*60 + "\n")
 
 

@@ -1,15 +1,24 @@
 /**
  * Chat Input Component
  * Handles text input, file selection, voice input, and file upload.
- * Fully themed via CSS custom properties.
+ * Uses textarea for multi-line support. Fully themed via CSS custom properties.
  */
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Send, Paperclip, X } from 'lucide-react';
 import { VoiceButton } from './VoiceInput';
 
 const ChatInput = ({ input, setInput, onSend, isLoading, onFileUpload, onVoiceTranscript }) => {
   const [selectedFiles, setSelectedFiles] = useState([]);
+  const textareaRef = useRef(null);
+
+  // Auto-resize textarea as content grows
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`;
+    }
+  }, [input]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -21,13 +30,17 @@ const ChatInput = ({ input, setInput, onSend, isLoading, onFileUpload, onVoiceTr
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit(e);
+      if (input.trim() && !isLoading) {
+        onSend();
+      }
     }
   };
 
   const handleFileSelect = (e) => {
     const files = Array.from(e.target.files);
     setSelectedFiles(files);
+    // Reset the input value so same file can be re-selected
+    e.target.value = '';
   };
 
   const handleFileUploadClick = () => {
@@ -62,17 +75,20 @@ const ChatInput = ({ input, setInput, onSend, isLoading, onFileUpload, onVoiceTr
                 color: 'var(--color-text-secondary)',
               }}
             >
-              <span className="truncate max-w-[120px]">{file.name}</span>
+              <span className="truncate max-w-[140px]">{file.name}</span>
               <button
+                type="button"
                 onClick={() => removeFile(index)}
                 className="flex-shrink-0 hover:text-red-500 transition-colors"
                 style={{ color: 'var(--color-text-muted)' }}
+                aria-label="Remove file"
               >
                 <X className="w-3 h-3" />
               </button>
             </div>
           ))}
           <button
+            type="button"
             onClick={handleFileUploadClick}
             disabled={isLoading}
             className="btn-primary py-1 px-3 text-xs"
@@ -85,7 +101,7 @@ const ChatInput = ({ input, setInput, onSend, isLoading, onFileUpload, onVoiceTr
       {/* ---- Input Row ---- */}
       <form onSubmit={handleSubmit}>
         <div
-          className="flex items-center gap-2 px-3 py-2 rounded-xl border-2 transition-all duration-150"
+          className="flex items-end gap-2 px-3 py-2 rounded-xl border-2 transition-all duration-150"
           style={{
             backgroundColor: 'var(--color-bg-input)',
             borderColor: 'var(--color-border-input)',
@@ -103,13 +119,13 @@ const ChatInput = ({ input, setInput, onSend, isLoading, onFileUpload, onVoiceTr
         >
           {/* Voice Input */}
           {onVoiceTranscript && (
-            <div className="flex-shrink-0">
+            <div className="flex-shrink-0 mb-1">
               <VoiceButton onTranscript={onVoiceTranscript} disabled={isLoading} />
             </div>
           )}
 
           {/* File Attach */}
-          <label className="flex-shrink-0 cursor-pointer">
+          <label className="flex-shrink-0 mb-1 cursor-pointer">
             <input
               type="file"
               multiple
@@ -129,17 +145,21 @@ const ChatInput = ({ input, setInput, onSend, isLoading, onFileUpload, onVoiceTr
             </div>
           </label>
 
-          {/* Text Area */}
-          <input
-            type="text"
+          {/* Textarea for multi-line inputs */}
+          <textarea
+            ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Ask a financial question or describe your document…"
             disabled={isLoading}
-            className="flex-1 bg-transparent focus:outline-none disabled:opacity-50 text-sm sm:text-base"
+            rows={1}
+            className="flex-1 bg-transparent focus:outline-none disabled:opacity-50 text-sm sm:text-base resize-none overflow-hidden py-1"
             style={{
               color: 'var(--color-text-primary)',
+              lineHeight: '1.5',
+              minHeight: '28px',
+              maxHeight: '160px',
             }}
           />
 
@@ -147,7 +167,7 @@ const ChatInput = ({ input, setInput, onSend, isLoading, onFileUpload, onVoiceTr
           <button
             type="submit"
             disabled={isLoading || !input.trim()}
-            className="flex-shrink-0 p-2 sm:p-2.5 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex-shrink-0 mb-1 p-2 sm:p-2.5 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             style={{
               backgroundColor: isLoading || !input.trim() ? 'var(--color-bg-elevated)' : '#2563eb',
             }}
@@ -158,6 +178,7 @@ const ChatInput = ({ input, setInput, onSend, isLoading, onFileUpload, onVoiceTr
               e.currentTarget.style.backgroundColor =
                 isLoading || !input.trim() ? 'var(--color-bg-elevated)' : '#2563eb';
             }}
+            aria-label="Send message"
           >
             <Send
               className="w-4 h-4 sm:w-5 sm:h-5"
@@ -169,7 +190,21 @@ const ChatInput = ({ input, setInput, onSend, isLoading, onFileUpload, onVoiceTr
 
       {/* Helper text */}
       <p className="text-xs text-center hidden sm:block" style={{ color: 'var(--color-text-muted)' }}>
-        Press <kbd className="px-1.5 py-0.5 rounded text-xs font-mono" style={{ backgroundColor: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)' }}>Enter</kbd> to send &nbsp;·&nbsp; <kbd className="px-1.5 py-0.5 rounded text-xs font-mono" style={{ backgroundColor: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)' }}>Shift+Enter</kbd> for new line
+        Press{' '}
+        <kbd
+          className="px-1.5 py-0.5 rounded text-xs font-mono"
+          style={{ backgroundColor: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)' }}
+        >
+          Enter
+        </kbd>{' '}
+        to send &nbsp;·&nbsp;{' '}
+        <kbd
+          className="px-1.5 py-0.5 rounded text-xs font-mono"
+          style={{ backgroundColor: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)' }}
+        >
+          Shift+Enter
+        </kbd>{' '}
+        for new line
       </p>
     </div>
   );

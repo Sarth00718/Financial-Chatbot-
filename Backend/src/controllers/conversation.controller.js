@@ -9,6 +9,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { Conversation } from "../models/Conversation.model.js";
 import { Message } from "../models/Message.model.js";
 import { Document } from "../models/Document.model.js";
+import { FEATURE_MODES } from "../config/constants.js";
 import mongoose from "mongoose";
 import axios from "axios";
 
@@ -78,11 +79,16 @@ export const getConversationById = asyncHandler(async (req, res) => {
 export const createConversation = asyncHandler(async (req, res) => {
   const { title, featureUsed } = req.body;
 
+  // Validate feature mode if provided
+  if (featureUsed && !Object.values(FEATURE_MODES).includes(featureUsed)) {
+    throw new ApiError(400, `Invalid feature mode. Must be one of: ${Object.values(FEATURE_MODES).join(', ')}`);
+  }
+
   // Create new conversation for the authenticated user
   const conversation = await Conversation.create({
     user: req.user._id,
     title: title || "New Chat",
-    featureUsed: featureUsed || "Smart_Chat",
+    featureUsed: featureUsed || FEATURE_MODES.SMART,
   });
 
   return res
@@ -355,6 +361,11 @@ export const updateConversation = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Title cannot be empty");
   }
 
+  // Validate feature mode
+  if (featureUsed && !Object.values(FEATURE_MODES).includes(featureUsed)) {
+    throw new ApiError(400, `Invalid feature mode. Must be one of: ${Object.values(FEATURE_MODES).join(', ')}`);
+  }
+
   if (!mongoose.isValidObjectId(conversationId)) {
     throw new ApiError(400, "Invalid conversation ID");
   }
@@ -368,7 +379,7 @@ export const updateConversation = asyncHandler(async (req, res) => {
   const conversation = await Conversation.findOneAndUpdate(
     { _id: conversationId, user: req.user._id },
     updateData,
-    { new: true }
+    { new: true, runValidators: true }
   );
 
   if (!conversation) {

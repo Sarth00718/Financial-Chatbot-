@@ -28,6 +28,7 @@ import {
 } from 'chart.js';
 import toast from 'react-hot-toast';
 import ThemeToggle from '../components/ThemeToggle';
+import { useTheme } from '../contexts/ThemeContext';
 
 // Register Chart.js components
 ChartJS.register(
@@ -70,6 +71,14 @@ const StatCard = ({ icon: Icon, iconBg, iconColor, value, label, badge }) => (
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const { user, logout, isAdmin } = useAuth();
+  const { isDark } = useTheme();
+
+  // Resolved chart axis/legend colors
+  const chartColors = {
+    textMuted:     isDark ? '#64748b' : '#94a3b8',
+    textSecondary: isDark ? '#94a3b8' : '#475569',
+    border:        isDark ? '#334155' : '#e2e8f0',
+  };
 
   const [stats, setStats]           = useState(null);
   const [analytics, setAnalytics]   = useState(null);
@@ -339,12 +348,12 @@ const AdminDashboard = () => {
                       scales: {
                         y: {
                           beginAtZero: true,
-                          ticks: { color: 'var(--color-text-muted)' },
-                          grid: { color: 'var(--color-border)' },
+                          ticks: { color: chartColors.textMuted },
+                          grid: { color: chartColors.border },
                         },
                         x: {
-                          ticks: { color: 'var(--color-text-muted)' },
-                          grid: { color: 'var(--color-border)' },
+                          ticks: { color: chartColors.textMuted },
+                          grid: { color: chartColors.border },
                         },
                       },
                     }}
@@ -387,12 +396,12 @@ const AdminDashboard = () => {
                       scales: {
                         y: {
                           beginAtZero: true,
-                          ticks: { color: 'var(--color-text-muted)' },
-                          grid: { color: 'var(--color-border)' },
+                          ticks: { color: chartColors.textMuted },
+                          grid: { color: chartColors.border },
                         },
                         x: {
-                          ticks: { color: 'var(--color-text-muted)' },
-                          grid: { color: 'var(--color-border)' },
+                          ticks: { color: chartColors.textMuted },
+                          grid: { color: chartColors.border },
                         },
                       },
                     }}
@@ -436,7 +445,7 @@ const AdminDashboard = () => {
                       plugins: {
                         legend: {
                           position: 'bottom',
-                          labels: { color: 'var(--color-text-secondary)' },
+                          labels: { color: chartColors.textSecondary },
                         },
                       },
                     }}
@@ -480,7 +489,7 @@ const AdminDashboard = () => {
                       plugins: {
                         legend: {
                           position: 'bottom',
-                          labels: { color: 'var(--color-text-secondary)' },
+                          labels: { color: chartColors.textSecondary },
                         },
                       },
                     }}

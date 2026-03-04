@@ -35,9 +35,8 @@ export const DOCUMENT_STATUS = {
 
 // Feature modes for conversations
 export const FEATURE_MODES = {
-  GENERAL: 'General_Conversation',
+  SMART: 'Smart_Chat',
   DOCUMENT: 'Document_Analysis',
   ANALYTICAL: 'Analytical_Insights',
-  MULTI_DOC: 'Multi_Document_Search',
-  SMART: 'Smart_Chat'
+  GENERAL: 'General_Conversation'
 };

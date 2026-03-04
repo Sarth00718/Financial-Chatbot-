@@ -24,7 +24,7 @@ router = APIRouter()
 async def health_check():
     return HealthResponse(
         status="healthy",
-        message="FinChatBot Python AI Service is running"
+        message="Financial Analysis Python Service is running"
     )
 
 
@@ -207,4 +207,3 @@ async def delete_multiple_documents(request: dict):
             status_code=500,
             detail=f"Failed to delete documents: {str(e)}"
         )
-

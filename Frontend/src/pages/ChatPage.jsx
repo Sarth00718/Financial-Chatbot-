@@ -301,11 +301,12 @@ const ChatPage = () => {
                   <Bot className="w-4 h-4 text-white" />
                 </div>
                 <div className="min-w-0">
-                  <h1 className="text-sm sm:text-base font-bold gradient-text truncate">
-                    Financial AI Assistant
-                  </h1>
+                  {/* FIXED: using <span> not <h1> here — h1 is reserved for page content */}
+                  <span className="block text-sm sm:text-base font-bold gradient-text truncate leading-tight">
+                    FinChatBot
+                  </span>
                   <p className="text-xs hidden sm:block" style={{ color: 'var(--color-text-muted)' }}>
-                    Powered by Groq AI
+                    Financial Document Analysis
                   </p>
                 </div>
               </div>
@@ -441,19 +442,20 @@ const ChatPage = () => {
                   className="w-20 h-20 sm:w-24 sm:h-24 mx-auto mb-5 rounded-3xl flex items-center justify-center shadow-xl"
                   style={{ background: 'linear-gradient(135deg, #dbeafe, #bfdbfe)' }}
                 >
-                  <Bot className="w-10 h-10 sm:w-12 sm:h-12 text-blue-600" />
+                  <BarChart3 className="w-10 h-10 sm:w-12 sm:h-12 text-blue-600" />
                 </div>
-                <h2
+                {/* SEMANTIC: h1 is the primary page heading when messages area is visible */}
+                <h1
                   className="text-2xl sm:text-3xl font-bold mb-2"
                   style={{ color: 'var(--color-text-primary)' }}
                 >
                   Welcome to FinChatBot
-                </h2>
+                </h1>
                 <p
                   className="text-sm sm:text-base mb-8 max-w-md mx-auto"
                   style={{ color: 'var(--color-text-secondary)' }}
                 >
-                  Your intelligent financial assistant. Upload documents or ask questions to get started.
+                  Your intelligent financial analysis platform. Upload documents or ask questions to get started.
                 </p>
 
                 {/* Feature cards */}
@@ -509,7 +511,7 @@ const ChatPage = () => {
             {isLoading && messages.length > 0 && (
               <div className="flex gap-3 mb-6 animate-fadeIn">
                 <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center shadow-md flex-shrink-0 self-end">
-                  <Bot className="w-5 h-5 text-white" />
+                  <BarChart3 className="w-5 h-5 text-white" />
                 </div>
                 <div
                   className="message-assistant inline-flex items-center gap-1.5 px-5 py-3.5"
@@ -546,6 +548,7 @@ const ChatPage = () => {
           </div>
         </footer>
       </div>
+
     </div>
   );
 };
