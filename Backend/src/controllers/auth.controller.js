@@ -14,6 +14,7 @@ import {
   clearAuthCookies,
   verifyRefreshToken,
 } from "../utils/jwt.js";
+import axios from "axios";
 import {
   sendPasswordResetEmail,
   sendWelcomeEmail,
@@ -353,4 +354,117 @@ export const refreshAccessToken = asyncHandler(async (req, res) => {
   } catch (error) {
     throw new ApiError(401, "Invalid or expired refresh token");
   }
+});
+
+/**
+ * Google OAuth redirect
+ * GET /api/v1/auth/google
+ */
+export const googleOAuthRedirect = asyncHandler(async (req, res) => {
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_REDIRECT_URI) {
+    throw new ApiError(500, "Google OAuth is not configured properly.");
+  }
+
+  const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+  authUrl.searchParams.set("client_id", process.env.GOOGLE_CLIENT_ID);
+  authUrl.searchParams.set("redirect_uri", process.env.GOOGLE_REDIRECT_URI);
+  authUrl.searchParams.set("response_type", "code");
+  authUrl.searchParams.set("scope", "openid email profile");
+  authUrl.searchParams.set("access_type", "offline");
+  authUrl.searchParams.set("prompt", "select_account consent");
+
+  res.redirect(authUrl.toString());
+});
+
+/**
+ * Google OAuth callback
+ * GET /api/v1/auth/google/callback
+ */
+export const googleOAuthCallback = asyncHandler(async (req, res) => {
+  const { code } = req.query;
+
+  if (!code) {
+    throw new ApiError(400, "Google OAuth callback did not receive a code.");
+  }
+
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET || !process.env.GOOGLE_REDIRECT_URI) {
+    throw new ApiError(500, "Google OAuth is not configured properly.");
+  }
+
+  const tokenResponse = await axios.post(
+    "https://oauth2.googleapis.com/token",
+    new URLSearchParams({
+      code: code.toString(),
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      redirect_uri: process.env.GOOGLE_REDIRECT_URI,
+      grant_type: "authorization_code",
+    }).toString(),
+    {
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+    }
+  );
+
+  const { id_token: idToken, access_token: accessToken } = tokenResponse.data;
+
+  if (!idToken || !accessToken) {
+    throw new ApiError(500, "Failed to exchange Google OAuth code.");
+  }
+
+  const userInfoResponse = await axios.get(
+    "https://openidconnect.googleapis.com/v1/userinfo",
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+
+  const { sub: googleId, email, name } = userInfoResponse.data;
+
+  if (!email) {
+    throw new ApiError(400, "Google account did not provide an email address.");
+  }
+
+  let user = await User.findOne({ email }).select("+refreshToken");
+
+  if (user) {
+    if (!user.isActive) {
+      throw new ApiError(403, "Your account has been deactivated. Contact support.");
+    }
+
+    user.googleId = googleId;
+    user.authProvider = "google";
+  } else {
+    const randomPassword = Math.random().toString(36).slice(-16);
+    user = await User.create({
+      name: name || email.split("@")[0],
+      email,
+      password: randomPassword,
+      role: "user",
+      isEmailVerified: true,
+      authProvider: "google",
+      googleId,
+    });
+  }
+
+  const accessTokenCookie = generateAccessToken({
+    userId: user._id,
+    role: user.role,
+  });
+  const refreshTokenCookie = generateRefreshToken({
+    userId: user._id,
+    role: user.role,
+  });
+
+  user.refreshToken = refreshTokenCookie;
+  await user.save();
+
+  setTokenCookie(res, "accessToken", accessTokenCookie, 15 * 60 * 1000);
+  setTokenCookie(res, "refreshToken", refreshTokenCookie, 7 * 24 * 60 * 60 * 1000);
+
+  const redirectUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL || "http://localhost:5173";
+  res.redirect(redirectUrl);
 });

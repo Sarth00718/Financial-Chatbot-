@@ -11,6 +11,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { errorHandler } from "./middlewares/errorHandler.middleware.js";
 import { requestLogger } from "./middlewares/requestLogger.middleware.js";
+import { apiLimiter } from "./middlewares/rateLimiter.middleware.js";
 
 // Import routes
 import authRoutes from "./routes/auth.routes.js";
@@ -19,6 +20,7 @@ import conversationRoutes from "./routes/conversation.routes.js";
 import documentRoutes from "./routes/document.routes.js";
 import messageRoutes from "./routes/message.routes.js";
 import analyticsRoutes from "./routes/analytics.routes.js";
+import enterpriseRoutes from "./routes/enterprise.routes.js";
 
 // Get directory path (needed for ES modules)
 const __filename = fileURLToPath(import.meta.url);
@@ -36,6 +38,11 @@ app.use(helmet({
 }));
 
 /**
+ * Trust proxy when running behind a proxy or load balancer
+ */
+app.set("trust proxy", 1);
+
+/**
  * Cookie Parser Middleware
  * Parse cookies from requests
  */
@@ -45,10 +52,10 @@ app.use(cookieParser());
  * CORS Configuration
  * Allows frontend to communicate with backend
  */
-const allowedOrigins = [
-  "http://localhost:5173",  // Vite default dev server
-  "http://localhost:3000",  // Alternative frontend port
-];
+const allowedOrigins = (process.env.CORS_ORIGIN || "http://localhost:5173")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
 app.use(
   cors({
@@ -62,9 +69,15 @@ app.use(
         callback(new Error("CORS not allowed for this origin"));
       }
     },
-    credentials: true, // Allow cookies
+    credentials: true,
+    exposedHeaders: ["Set-Cookie"],
   })
 );
+
+/**
+ * Global API rate limiter
+ */
+app.use(apiLimiter);
 
 /**
  * Body Parser Middleware
@@ -96,6 +109,7 @@ app.use("/api/v1/conversations", conversationRoutes);
 app.use("/api/v1/documents", documentRoutes);
 app.use("/api/v1/messages", messageRoutes);
 app.use("/api/v1/analytics", analyticsRoutes);
+app.use("/api/v1/enterprise", enterpriseRoutes);
 
 /**
  * Health Check Endpoint
@@ -115,7 +129,7 @@ app.get("/api/v1/health", (req, res) => {
 app.get("/", (req, res) => {
   res.status(200).json({
     message: "Welcome to FinChatBot API",
-    version: "2.0.0",
+    version: "3.0.0",
     documentation: "/api/v1/health",
   });
 });

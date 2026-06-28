@@ -10,6 +10,8 @@ import { app } from "./app.js";
 import connectDatabase from "./config/database.js";
 import { handleSocketChatMessage } from "./controllers/socket.controller.js";
 import { ensureUploadsDirectory } from "./utils/fileStorage.js";
+import { verifyAccessToken } from "./utils/jwt.js";
+import { User } from "./models/User.model.js";
 
 // Load environment variables
 dotenv.config();
@@ -30,7 +32,7 @@ const httpServer = http.createServer(app);
 const io = new Server(httpServer, {
   pingTimeout: 60000, // 60 seconds
   cors: {
-    origin: CORS_ORIGIN.split(","), // Support multiple origins
+    origin: CORS_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean),
     credentials: true,
   },
 });
@@ -38,12 +40,59 @@ const io = new Server(httpServer, {
 // Make io accessible in Express routes
 app.set("io", io);
 
+const parseCookies = (cookieHeader = "") =>
+  Object.fromEntries(
+    cookieHeader
+      .split(";")
+      .map((cookie) => cookie.trim().split("="))
+      .map(([name, ...value]) => [name, decodeURIComponent(value.join("="))])
+  );
+
+/**
+ * Socket.IO Authentication Middleware
+ * Verifies access token from cookies or Authorization header
+ */
+io.use(async (socket, next) => {
+  try {
+    const token =
+      socket.handshake.auth?.token ||
+      socket.handshake.headers?.authorization?.split(" ")[1] ||
+      parseCookies(socket.handshake.headers?.cookie || "").accessToken;
+
+    if (!token) {
+      return next(new Error("Authentication required"));
+    }
+
+    const decoded = verifyAccessToken(token);
+    const user = await User.findById(decoded.userId).select("-password");
+
+    if (!user) {
+      return next(new Error("User not found"));
+    }
+
+    if (!user.isActive) {
+      return next(new Error("User account is deactivated"));
+    }
+
+    socket.user = {
+      id: user._id.toString(),
+      role: user.role,
+      email: user.email,
+      name: user.name,
+    };
+
+    next();
+  } catch (err) {
+    console.error("Socket auth failed:", err.message);
+    next(new Error("Socket authentication failed"));
+  }
+});
+
 /**
  * Socket.IO Connection Handler
- * No authentication required - simplified version
  */
 io.on("connection", (socket) => {
-  console.log(`✅ User connected: ${socket.id}`);
+  console.log(`✅ User connected: ${socket.id} (${socket.user?.email || 'unknown'})`);
 
   /**
    * Join Conversation Room

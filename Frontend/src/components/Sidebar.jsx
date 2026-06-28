@@ -39,7 +39,7 @@ const Sidebar = ({
         setIsSearching(true);
         setSearchError('');
         const response = await conversationAPI.search(searchQuery);
-        setSearchResults(response.data.data.conversations);
+        setSearchResults(response.data.data?.conversations || []);
       } catch (error) {
         console.error('Search failed:', error);
         setSearchError('Search failed. Please try again.');
@@ -345,7 +345,7 @@ const Sidebar = ({
 
         {/* ---- Footer ---- */}
         <div className="p-4 border-t text-center" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-elevated)' }}>
-          <p className="text-xs font-bold gradient-text">FinChatBot v2.0</p>
+          <p className="text-xs font-bold gradient-text">FinChatBot v3.0</p>
           <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>Financial Document Analysis</p>
         </div>
       </div>

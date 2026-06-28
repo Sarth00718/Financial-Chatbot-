@@ -10,15 +10,17 @@ import { User, BarChart3, Info, Edit2, Trash2, Check, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { SpeakerButton } from './VoiceInput';
 import DataVisualization from './DataVisualization';
+import CitationPanel from './CitationPanel';
 import { messageAPI } from '../utils/api';
 import toast from 'react-hot-toast';
 
 const Message = ({ message, onMessageUpdate, onMessageDelete, onRegenerateResponse }) => {
-  const { role, content, createdAt } = message;
+  const { role, content, createdAt, citations } = message;
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(content);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const isUser      = role === 'user';
   const isAssistant = role === 'assistant';
@@ -70,9 +72,19 @@ const Message = ({ message, onMessageUpdate, onMessageDelete, onRegenerateRespon
     }
   };
 
-  const handleDelete = async () => {
-    if (!window.confirm('Delete this message?')) return;
+  /**
+   * Delete: first click shows inline confirmation, second click deletes.
+   * Avoids blocking window.confirm() call.
+   */
+  const handleDeleteClick = () => {
+    if (!showDeleteConfirm) {
+      setShowDeleteConfirm(true);
+      return;
+    }
+    handleConfirmDelete();
+  };
 
+  const handleConfirmDelete = async () => {
     try {
       setIsDeleting(true);
       await messageAPI.delete(message._id);
@@ -82,7 +94,12 @@ const Message = ({ message, onMessageUpdate, onMessageDelete, onRegenerateRespon
       console.error('Failed to delete message:', error);
       toast.error('Failed to delete message');
       setIsDeleting(false);
+      setShowDeleteConfirm(false);
     }
+  };
+
+  const handleCancelDelete = () => {
+    setShowDeleteConfirm(false);
   };
 
   const handleCancelEdit = () => {
@@ -209,7 +226,7 @@ const Message = ({ message, onMessageUpdate, onMessageDelete, onRegenerateRespon
                       Cancel
                     </button>
                     <span className="text-xs ml-auto" style={{ color: 'var(--color-text-muted)' }}>
-                      Ctrl+Enter to save & regenerate
+                      Ctrl+Enter to save &amp; regenerate
                     </span>
                   </div>
                 </div>
@@ -245,6 +262,7 @@ const Message = ({ message, onMessageUpdate, onMessageDelete, onRegenerateRespon
                       >
                         {content}
                       </ReactMarkdown>
+                      <CitationPanel citations={citations} />
                     </div>
                   ) : (
                     /* Plain text for user and system */
@@ -260,7 +278,7 @@ const Message = ({ message, onMessageUpdate, onMessageDelete, onRegenerateRespon
             {!isEditing && (
               <div className="flex items-center gap-1 flex-shrink-0">
                 {isAssistant && <SpeakerButton text={content} />}
-                {isUser && (
+                {isUser && !showDeleteConfirm && (
                   <>
                     <button
                       onClick={() => setIsEditing(true)}
@@ -270,13 +288,37 @@ const Message = ({ message, onMessageUpdate, onMessageDelete, onRegenerateRespon
                       <Edit2 className="w-3.5 h-3.5" />
                     </button>
                     <button
-                      onClick={handleDelete}
-                      className="icon-btn opacity-0 group-hover:opacity-100 transition-opacity text-red-500"
+                      onClick={handleDeleteClick}
+                      className="icon-btn opacity-0 group-hover:opacity-100 transition-opacity"
                       title="Delete message"
+                      style={{ color: 'var(--color-error-text)' }}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </>
+                )}
+                {/* Inline delete confirmation */}
+                {isUser && showDeleteConfirm && (
+                  <div className="flex items-center gap-1 animate-fadeIn">
+                    <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                      Delete?
+                    </span>
+                    <button
+                      onClick={handleConfirmDelete}
+                      className="icon-btn p-1"
+                      title="Confirm delete"
+                      style={{ color: 'var(--color-error-text)' }}
+                    >
+                      <Check className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={handleCancelDelete}
+                      className="icon-btn p-1"
+                      title="Cancel"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
                 )}
               </div>
             )}

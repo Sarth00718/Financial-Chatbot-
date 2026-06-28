@@ -1,6 +1,11 @@
 /**
  * Application Entry Point
  * Sets up React Router, Context providers, and renders the app.
+ *
+ * IMPORTANT: ChatPage manages its own Sidebar internally, so it is
+ * intentionally NOT wrapped in AppLayout (which would add a 2nd sidebar).
+ * All other pages (Dashboard, Executive, Bookmarks, Watchlist, Admin)
+ * do NOT have internal sidebars and therefore DO use AppLayout.
  */
 
 import React from 'react';
@@ -24,6 +29,12 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import ChatPage          from './pages/ChatPage';
 import AdminDashboard    from './pages/AdminDashboard';
 import UserDashboard     from './pages/UserDashboard';
+import ExecutiveDashboard from './pages/ExecutiveDashboard';
+import BookmarksPage     from './pages/BookmarksPage';
+import WatchlistPage     from './pages/WatchlistPage';
+import MuiThemeWrapper   from './theme/MuiThemeWrapper';
+import ErrorBoundary     from './components/ErrorBoundary';
+import AppLayout          from './components/layout/AppLayout';
 
 /**
  * Theme-aware Toaster that reads from ThemeContext.
@@ -68,8 +79,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       }}
     >
       <ThemeProvider>
+        <MuiThemeWrapper>
         <AuthProvider>
           <ThemedToaster />
+          <ErrorBoundary>
           <Routes>
             {/* Public routes */}
             <Route path="/login"          element={<LoginPage />} />
@@ -77,7 +90,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-            {/* Protected routes */}
+            {/* ============================================================
+                ChatPage: Has its own integrated Sidebar — NO AppLayout wrapper.
+                Adding AppLayout here would create a duplicate sidebar.
+                ============================================================ */}
             <Route
               path="/"
               element={
@@ -87,12 +103,51 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               }
             />
 
+            {/* ============================================================
+                All other protected pages: use AppLayout for navigation.
+                These pages do NOT render their own sidebar.
+                ============================================================ */}
+
             {/* User Dashboard */}
             <Route
               path="/dashboard"
               element={
                 <ProtectedRoute>
-                  <UserDashboard />
+                  <AppLayout>
+                    <UserDashboard />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Enterprise routes */}
+            <Route
+              path="/executive"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <ExecutiveDashboard />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/bookmarks"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <BookmarksPage />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/watchlist"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <WatchlistPage />
+                  </AppLayout>
                 </ProtectedRoute>
               }
             />
@@ -102,7 +157,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               path="/admin"
               element={
                 <ProtectedRoute adminOnly={true}>
-                  <AdminDashboard />
+                  <AppLayout>
+                    <AdminDashboard />
+                  </AppLayout>
                 </ProtectedRoute>
               }
             />
@@ -110,7 +167,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </ErrorBoundary>
         </AuthProvider>
+        </MuiThemeWrapper>
       </ThemeProvider>
     </BrowserRouter>
   </React.StrictMode>

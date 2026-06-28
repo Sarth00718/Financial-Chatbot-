@@ -1,6 +1,6 @@
 {
   "name": "finchatbot-frontend",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "type": "module",
   "private": true,
   "scripts": {
@@ -9,8 +9,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^7.3.11",
+    "@mui/material": "^7.3.11",
     "axios": "^1.7.7",
     "chart.js": "^4.4.1",
+    "docx": "^9.7.1",
+    "file-saver": "^2.0.5",
+    "framer-motion": "^12.42.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^3.8.2",
@@ -20,7 +27,8 @@
     "react-dom": "^18.3.1",
     "react-hot-toast": "^2.6.0",
     "react-markdown": "^9.0.1",
-    "react-router-dom": "^6.26.0"
+    "react-router-dom": "^6.26.0",
+    "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",

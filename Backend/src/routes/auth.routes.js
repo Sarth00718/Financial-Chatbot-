@@ -9,6 +9,8 @@ import {
   forgotPassword,
   resetPassword,
   refreshAccessToken,
+  googleOAuthRedirect,
+  googleOAuthCallback,
 } from "../controllers/auth.controller.js";
 import { authenticate } from "../middlewares/auth.middleware.js";
 import { validate } from "../middlewares/validate.middleware.js";
@@ -25,6 +27,8 @@ import { authLimiter, passwordResetLimiter } from "../middlewares/rateLimiter.mi
 const router = express.Router();
 
 // Public routes with rate limiting
+router.get("/google", googleOAuthRedirect);
+router.get("/google/callback", googleOAuthCallback);
 router.post("/register", authLimiter, validate(registerSchema), register);
 router.post("/login", authLimiter, validate(loginSchema), login);
 router.post("/forgot-password", passwordResetLimiter, validate(forgotPasswordSchema), forgotPassword);

@@ -170,12 +170,13 @@ const AdminDashboard = () => {
     }
   };
 
-  const filteredUsers = users.filter((u) => {
+  const filteredUsers = (users || []).filter((u) => {
+    if (!u) return false;
     const matchesSearch =
-      u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchTerm.toLowerCase());
+      (u.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (u.email || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesRole   = !filterRole   || u.role === filterRole;
-    const matchesStatus = filterStatus === '' || u.isActive.toString() === filterStatus;
+    const matchesStatus = filterStatus === '' || (u.isActive !== undefined && u.isActive.toString() === filterStatus);
     return matchesSearch && matchesRole && matchesStatus;
   });
 
@@ -275,30 +276,30 @@ const AdminDashboard = () => {
             icon={Users}
             iconBg="var(--color-info-bg)"
             iconColor="var(--color-info-text)"
-            value={stats?.overview.totalUsers}
+            value={stats?.overview?.totalUsers}
             label="Total Users"
-            badge={`+${stats?.overview.recentRegistrations ?? 0} this month`}
+            badge={`+${stats?.overview?.recentRegistrations ?? 0} this month`}
           />
           <StatCard
             icon={Activity}
             iconBg="var(--color-success-bg)"
             iconColor="var(--color-success-text)"
-            value={stats?.overview.activeUsers}
+            value={stats?.overview?.activeUsers}
             label="Active Users"
-            badge={`${stats?.overview.activeUsersLastWeek ?? 0} this week`}
+            badge={`${stats?.overview?.activeUsersLastWeek ?? 0} this week`}
           />
           <StatCard
             icon={MessageSquare}
             iconBg="var(--color-info-bg)"
             iconColor="var(--color-primary-600, #2563eb)"
-            value={stats?.overview.totalConversations}
+            value={stats?.overview?.totalConversations}
             label="Total Conversations"
           />
           <StatCard
             icon={FileText}
             iconBg="var(--color-warning-bg)"
             iconColor="var(--color-warning-text)"
-            value={stats?.overview.totalDocuments}
+            value={stats?.overview?.totalDocuments}
             label="Documents Processed"
           />
         </div>
@@ -583,9 +584,9 @@ const AdminDashboard = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredUsers.map((u) => (
+                {filteredUsers.map((u, uIdx) => (
                   <tr
-                    key={u._id}
+                    key={u?._id || uIdx}
                     className="border-b transition-colors"
                     style={{ borderColor: 'var(--color-border)' }}
                     onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)')}
@@ -595,11 +596,11 @@ const AdminDashboard = () => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
-                          {u.name.charAt(0).toUpperCase()}
+                          {(u?.name || 'U').charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>{u.name}</p>
-                          <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{u.email}</p>
+                          <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>{u?.name || 'Unnamed'}</p>
+                          <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{u?.email || ''}</p>
                         </div>
                       </div>
                     </td>
@@ -609,12 +610,12 @@ const AdminDashboard = () => {
                       <span
                         className="px-2.5 py-0.5 text-xs rounded-full font-medium"
                         style={
-                          u.role === 'admin'
+                          u?.role === 'admin'
                             ? { backgroundColor: 'var(--color-info-bg)', color: 'var(--color-info-text)' }
                             : { backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text-secondary)' }
                         }
                       >
-                        {u.role}
+                        {u?.role || 'user'}
                       </span>
                     </td>
 
@@ -623,23 +624,23 @@ const AdminDashboard = () => {
                       <span
                         className="px-2.5 py-0.5 text-xs rounded-full font-medium"
                         style={
-                          u.isActive
+                          u?.isActive
                             ? { backgroundColor: 'var(--color-success-bg)', color: 'var(--color-success-text)' }
                             : { backgroundColor: 'var(--color-error-bg)', color: 'var(--color-error-text)' }
                         }
                       >
-                        {u.isActive ? 'Active' : 'Blocked'}
+                        {u?.isActive ? 'Active' : 'Blocked'}
                       </span>
                     </td>
 
                     {/* Joined */}
                     <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                      {new Date(u.createdAt).toLocaleDateString()}
+                      {u?.createdAt ? new Date(u.createdAt).toLocaleDateString() : ''}
                     </td>
 
                     {/* Actions */}
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {u._id !== user._id && (
+                      {u?._id && u._id !== user?._id && (
                         <div className="flex items-center justify-end gap-1.5">
                           {/* Toggle status */}
                           <button

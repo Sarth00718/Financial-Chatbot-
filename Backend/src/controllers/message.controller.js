@@ -116,6 +116,7 @@ export const editAndRegenerateMessage = asyncHandler(async (req, res) => {
 
   // Call Python AI service for new response
   let aiContent;
+  let aiCitations = [];
   try {
     const axios = (await import("axios")).default;
     const response = await axios.post(
@@ -131,6 +132,7 @@ export const editAndRegenerateMessage = asyncHandler(async (req, res) => {
       }
     );
     aiContent = response.data.answer;
+    aiCitations = response.data.citations || [];
   } catch (error) {
     console.error("Error calling Python AI service:", error.message);
     throw new ApiError(
@@ -148,6 +150,7 @@ export const editAndRegenerateMessage = asyncHandler(async (req, res) => {
     conversation: message.conversation._id,
     role: "assistant",
     content: aiContent,
+    citations: aiCitations,
   });
 
   return res

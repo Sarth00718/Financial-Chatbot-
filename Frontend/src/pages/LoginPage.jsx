@@ -240,6 +240,22 @@ const LoginPage = () => {
               </button>
             </form>
 
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+                  const normalized = apiBase.replace(/\/api\/v1\/?$/, '');
+                  const url = `${normalized}/api/v1/auth/google`;
+                  window.location.href = url;
+                }}
+                className="w-full py-3 px-4 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all duration-200 flex items-center justify-center gap-2"
+              >
+                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-100 text-xs font-bold">G</span>
+                Continue with Google
+              </button>
+            </div>
+
             {/* Divider */}
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">

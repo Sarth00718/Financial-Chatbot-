@@ -122,6 +122,10 @@ class LocalVectorStore:
                     
                     # Perform similarity search
                     results = vectorstore.similarity_search(query, k=k)
+                    for doc in results:
+                        if doc.metadata is None:
+                            doc.metadata = {}
+                        doc.metadata["namespace"] = namespace
                     all_results.extend(results)
                     
                     print(f"Found {len(results)} results in namespace: {namespace}")
@@ -151,17 +155,15 @@ class LocalVectorStore:
             True if successful, False otherwise
         """
         try:
+            import shutil
             namespace_path = self._get_namespace_path(namespace)
             
-            # FAISS creates multiple files, remove the directory
+            # FAISS creates a directory, remove it completely
             if os.path.exists(namespace_path):
-                # Remove FAISS index file
-                os.remove(namespace_path)
-                
-                # Remove pickle file if exists
-                pkl_path = f"{namespace_path}.pkl"
-                if os.path.exists(pkl_path):
-                    os.remove(pkl_path)
+                if os.path.isdir(namespace_path):
+                    shutil.rmtree(namespace_path)
+                else:
+                    os.remove(namespace_path)
                 
                 print(f"[OK] Vector store deleted: {namespace}")
                 return True

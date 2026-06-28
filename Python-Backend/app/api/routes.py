@@ -10,7 +10,9 @@ from app.models.schemas import (
     QueryRequest,
     QueryResponse,
     DeleteDocumentRequest,
-    HealthResponse
+    HealthResponse,
+    EnterpriseAnalysisRequest,
+    EnterpriseAnalysisResponse,
 )
 from app.services.document_processor import document_processor
 from app.services.rag_service import rag_service
@@ -94,14 +96,17 @@ async def query_documents(request: QueryRequest):
             )
         
         # Get answer from RAG service
-        answer = await rag_service.get_answer(
+        result = await rag_service.get_answer(
             question=request.question,
             chat_history=request.chatHistory,
             namespaces=request.vectorNamespaces,
             feature_mode=request.featureUsed
         )
         
-        return QueryResponse(answer=answer)
+        return QueryResponse(
+            answer=result.get("answer", ""),
+            citations=result.get("citations", []),
+        )
         
     except HTTPException:
         raise
@@ -243,4 +248,62 @@ async def audit_summary(request: dict):
             status_code=500,
             detail=f"Audit summary failed: {str(e)}"
         )
+
+
+@router.post("/enterprise/analyze", response_model=EnterpriseAnalysisResponse)
+async def enterprise_analyze(request: EnterpriseAnalysisRequest):
+    """
+    Enterprise financial analysis endpoint.
+    Supports: executive_summary, financial_ratios, swot_analysis,
+    risk_analysis, company_comparison, multi_document_comparison,
+    kpi_extraction, explain_mode, trend_analysis, report_generator
+    """
+    try:
+        if not request.vectorNamespaces:
+            raise HTTPException(status_code=400, detail="No vector namespaces provided")
+
+        print(f"\n[ENTERPRISE] {request.analysisType} on {len(request.vectorNamespaces)} document(s)")
+
+        result = await rag_service.run_enterprise_analysis(
+            analysis_type=request.analysisType,
+            namespaces=request.vectorNamespaces,
+            question=request.question,
+            chat_history=request.chatHistory,
+        )
+
+        return EnterpriseAnalysisResponse(
+            analysisType=request.analysisType,
+            answer=result.get("answer", ""),
+            citations=result.get("citations", []),
+            metadata=result.get("metadata", {}),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR] Enterprise analysis failed: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Enterprise analysis failed: {str(e)}")
+
+
+@router.get("/enterprise/analysis-types")
+async def get_analysis_types():
+    """Return supported enterprise analysis types."""
+    from app.config.prompts import ENTERPRISE_PROMPTS
+    return {
+        "analysisTypes": list(ENTERPRISE_PROMPTS.keys()),
+        "descriptions": {
+            "executive_summary": "Board-ready executive summary",
+            "financial_ratios": "Financial ratio calculation and interpretation",
+            "swot_analysis": "Document-grounded SWOT analysis",
+            "risk_analysis": "Financial and operational risk assessment",
+            "company_comparison": "Compare companies or periods",
+            "multi_document_comparison": "Cross-document comparison",
+            "kpi_extraction": "Extract key financial KPIs",
+            "explain_mode": "Plain-language financial explanations",
+            "trend_analysis": "Time-series trend identification",
+            "report_generator": "Comprehensive analysis report",
+        },
+    }
 

@@ -5,7 +5,9 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { Menu, Share2, LogOut, User, Shield, BarChart3, Bot } from 'lucide-react';
+import { io } from 'socket.io-client';
+import { Menu, Share2, LogOut, User, Shield, BarChart3, Bot, Bookmark, Eye, Sparkles } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { conversationAPI, documentAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -16,6 +18,7 @@ import FeatureSelector from '../components/FeatureSelector';
 import { VoiceButton } from '../components/VoiceInput';
 import ExportReports from '../components/ExportReports';
 import SmartSuggestions from '../components/SmartSuggestions';
+import EnterpriseInsights from '../components/EnterpriseInsights';
 
 const ChatPage = () => {
   const navigate = useNavigate();
@@ -31,6 +34,9 @@ const ChatPage = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 768);
   const [selectedFeature, setSelectedFeature] = useState('Smart_Chat');
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [socketConnected, setSocketConnected] = useState(false);
+  const [socketError, setSocketError] = useState('');
+  const socketRef = useRef(null);
 
   const messagesEndRef = useRef(null);
   const userMenuRef    = useRef(null);
@@ -61,6 +67,80 @@ const ChatPage = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    let backendOrigin = 'http://localhost:8000';
+    try {
+      const apiUrlStr = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+      if (apiUrlStr.startsWith('http://') || apiUrlStr.startsWith('https://')) {
+        backendOrigin = new URL(apiUrlStr).origin;
+      } else {
+        backendOrigin = window.location.origin;
+      }
+    } catch (e) {
+      console.error('Failed to parse VITE_API_URL for socket connection:', e);
+    }
+    const socket = io(backendOrigin, {
+      withCredentials: true,
+      transports: ['websocket'],
+    });
+
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      setSocketConnected(true);
+      setSocketError('');
+      console.log('Socket connected:', socket.id);
+    });
+
+    socket.on('connect_error', (error) => {
+      setSocketConnected(false);
+      setSocketError(error.message || 'Unable to connect to chat server');
+      console.error('Socket connect error:', error);
+    });
+
+    socket.on('disconnect', () => {
+      setSocketConnected(false);
+      setSocketError('Chat connection disconnected');
+    });
+
+    socket.on('newMessage', (message) => {
+      setMessages((prev) => {
+        if (prev.some((existing) => existing._id === message._id)) return prev;
+        return [...prev, message];
+      });
+
+      if (message.role === 'assistant') {
+        setIsLoading(false);
+      }
+    });
+
+    socket.on('chatError', ({ message }) => {
+      setMessages((prev) => [
+        ...prev,
+        {
+          _id: `error-${Date.now()}`,
+          role: 'system',
+          content: message || 'Chat failed. Please try again.',
+        },
+      ]);
+      setIsLoading(false);
+    });
+
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!socketRef.current || !currentConversationId) return;
+
+    socketRef.current.emit('joinConversation', currentConversationId);
+    return () => {
+      socketRef.current?.emit('leaveConversation', currentConversationId);
+    };
+  }, [currentConversationId]);
 
   // ---- Handlers ----
   const handleLogout = async () => {
@@ -113,13 +193,75 @@ const ChatPage = () => {
 
   const handleSelectChat = async (id) => {
     setCurrentConversationId(id);
-    setIsSidebarOpen(false);
+    // Only collapse sidebar on mobile — keep it open on desktop
+    if (window.innerWidth < 768) {
+      setIsSidebarOpen(false);
+    }
     const conv = conversations.find((c) => c._id === id);
     if (conv) setSelectedFeature(conv.featureUsed || 'Smart_Chat');
   };
 
   const handleDeleteChat = async (id) => {
-    if (!window.confirm('Delete this conversation?')) return;
+    // Non-blocking confirmation via a promise-based toast
+    const confirmed = await new Promise((resolve) => {
+      toast.custom(
+        (t) => (
+          <div
+            style={{
+              background: 'var(--color-bg-surface)',
+              border: '1px solid var(--color-border)',
+              color: 'var(--color-text-primary)',
+              borderRadius: '0.75rem',
+              padding: '1rem',
+              boxShadow: '0 10px 20px rgba(0,0,0,0.15)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.75rem',
+              minWidth: '240px',
+            }}
+          >
+            <p style={{ fontSize: '0.875rem', fontWeight: 500 }}>
+              Delete this conversation?
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => { toast.dismiss(t.id); resolve(false); }}
+                style={{
+                  padding: '0.35rem 0.75rem',
+                  borderRadius: '0.5rem',
+                  border: '1px solid var(--color-border)',
+                  background: 'transparent',
+                  color: 'var(--color-text-secondary)',
+                  cursor: 'pointer',
+                  fontSize: '0.8125rem',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { toast.dismiss(t.id); resolve(true); }}
+                style={{
+                  padding: '0.35rem 0.75rem',
+                  borderRadius: '0.5rem',
+                  border: 'none',
+                  background: '#dc2626',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontSize: '0.8125rem',
+                  fontWeight: 600,
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        ),
+        { duration: Infinity }
+      );
+    });
+
+    if (!confirmed) return;
+
     try {
       await conversationAPI.delete(id);
       const updated = conversations.filter((c) => c._id !== id);
@@ -127,8 +269,10 @@ const ChatPage = () => {
       if (currentConversationId === id) {
         updated.length > 0 ? setCurrentConversationId(updated[0]._id) : await handleNewChat();
       }
+      toast.success('Conversation deleted');
     } catch (err) {
       console.error('Failed to delete conversation:', err);
+      toast.error('Failed to delete conversation');
     }
   };
 
@@ -144,20 +288,26 @@ const ChatPage = () => {
   const handleSend = async () => {
     if (!input.trim() || !currentConversationId || isLoading) return;
 
-    const tempMessage = { _id: `temp-${Date.now()}`, role: 'user', content: input };
-    setMessages((prev) => [...prev, tempMessage]);
-
-    const messageContent  = input;
-    const isFirstMessage  = messages.length === 0;
+    const messageContent = input.trim();
     setInput('');
     setIsLoading(true);
 
     try {
-      await conversationAPI.sendMessage(currentConversationId, messageContent);
+      if (socketRef.current?.connected) {
+        socketRef.current.emit('sendMessage', {
+          conversationId: currentConversationId,
+          content: messageContent,
+        });
+      } else {
+        // REST fallback: manually fetch and clear loading state
+        await conversationAPI.sendMessage(currentConversationId, messageContent);
+        await fetchMessages();
+        setIsLoading(false);
+      }
 
-      // Auto-title on first message
+      const isFirstMessage = messages.length === 0;
       if (isFirstMessage) {
-        const title = messageContent.length > 50 ? messageContent.substring(0, 47) + '…' : messageContent;
+        const title = messageContent.length > 50 ? `${messageContent.substring(0, 47)}…` : messageContent;
         try {
           await conversationAPI.update(currentConversationId, { title });
           setConversations((prev) =>
@@ -167,15 +317,12 @@ const ChatPage = () => {
           console.error('Failed to update title:', err);
         }
       }
-
-      await fetchMessages();
     } catch (err) {
       console.error('Failed to send message:', err);
       setMessages((prev) => [
-        ...prev.filter((m) => m._id !== tempMessage._id),
-        { _id: 'error', role: 'system', content: 'Failed to get response. Please try again.' },
+        ...prev,
+        { _id: `error-${Date.now()}`, role: 'system', content: 'Failed to get response. Please try again.' },
       ]);
-    } finally {
       setIsLoading(false);
     }
   };
@@ -276,8 +423,8 @@ const ChatPage = () => {
       .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
       .join('\n\n');
     navigator.clipboard.writeText(text).then(
-      () => alert('Conversation copied to clipboard!'),
-      () => alert('Failed to copy conversation')
+      () => toast.success('Conversation copied to clipboard!'),
+      () => toast.error('Failed to copy conversation')
     );
   };
 
@@ -378,7 +525,7 @@ const ChatPage = () => {
                     FinChatBot
                   </span>
                   <p className="text-xs hidden sm:block" style={{ color: 'var(--color-text-muted)' }}>
-                    Financial Document Analysis
+                    Enterprise v3.0
                   </p>
                 </div>
               </div>
@@ -423,6 +570,12 @@ const ChatPage = () => {
               <button onClick={handleShare} className="icon-btn" title="Share conversation">
                 <Share2 className="w-4 h-4" />
               </button>
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ backgroundColor: 'rgba(148, 163, 184, 0.08)' }}>
+                <span className={`h-2.5 w-2.5 rounded-full ${socketConnected ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                <span className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
+                  {socketConnected ? 'Live chat connected' : socketError || 'Real-time chat unavailable'}
+                </span>
+              </div>
 
               {/* User Menu */}
               <div className="relative ml-1" ref={userMenuRef}>
@@ -477,6 +630,36 @@ const ChatPage = () => {
                         Admin Dashboard
                       </button>
                     )}
+                    <button
+                      onClick={() => navigate('/executive')}
+                      className="w-full px-4 py-2.5 text-left text-sm flex items-center gap-2.5 transition-colors"
+                      style={{ color: 'var(--color-text-secondary)' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      Executive Dashboard
+                    </button>
+                    <button
+                      onClick={() => navigate('/bookmarks')}
+                      className="w-full px-4 py-2.5 text-left text-sm flex items-center gap-2.5 transition-colors"
+                      style={{ color: 'var(--color-text-secondary)' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                    >
+                      <Bookmark className="w-4 h-4" />
+                      Bookmarks
+                    </button>
+                    <button
+                      onClick={() => navigate('/watchlist')}
+                      className="w-full px-4 py-2.5 text-left text-sm flex items-center gap-2.5 transition-colors"
+                      style={{ color: 'var(--color-text-secondary)' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                    >
+                      <Eye className="w-4 h-4" />
+                      Watchlist
+                    </button>
                     <button
                       onClick={() => navigate('/dashboard')}
                       className="w-full px-4 py-2.5 text-left text-sm flex items-center gap-2.5 transition-colors"
@@ -598,6 +781,14 @@ const ChatPage = () => {
             <div ref={messagesEndRef} />
           </div>
         </main>
+
+        {/* ---- Enterprise Analysis Panel ---- */}
+        {currentConversationId && (
+          <EnterpriseInsights
+            conversationId={currentConversationId}
+            hasDocuments={currentConversation?.documents?.some((d) => d.status === 'processed') ?? false}
+          />
+        )}
 
         {/* ---- Footer / Input ---- */}
         <footer

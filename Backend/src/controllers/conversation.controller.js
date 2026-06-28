@@ -59,7 +59,7 @@ export const getConversationById = asyncHandler(async (req, res) => {
   // Get all messages in this conversation
   const messages = await Message.find({ conversation: conversationId })
     .sort({ createdAt: "asc" })
-    .select("role content createdAt");
+    .select("role content citations createdAt");
 
   return res
     .status(200)
@@ -145,6 +145,7 @@ export const sendChatMessage = asyncHandler(async (req, res) => {
 
   // Call Python AI service for response
   let aiContent;
+  let aiCitations = [];
   try {
     const response = await axios.post(
       `${process.env.PYTHON_SERVICE_URL}/query`,
@@ -159,6 +160,7 @@ export const sendChatMessage = asyncHandler(async (req, res) => {
       }
     );
     aiContent = response.data.answer;
+    aiCitations = response.data.citations || [];
   } catch (error) {
     console.error("Error calling Python AI service:", error.message);
     throw new ApiError(
@@ -176,6 +178,7 @@ export const sendChatMessage = asyncHandler(async (req, res) => {
     conversation: conversationId,
     role: "assistant",
     content: aiContent,
+    citations: aiCitations || [],
   });
 
   return res

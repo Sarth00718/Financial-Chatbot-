@@ -74,12 +74,14 @@ export const handleSocketChatMessage = async (socket, data) => {
       );
 
       const aiContent = response.data.answer;
+      const aiCitations = response.data.citations || [];
 
       // Save AI's response
       const assistantMessage = await Message.create({
         conversation: conversationId,
         role: "assistant",
         content: aiContent,
+        citations: aiCitations,
       });
 
       // Emit AI response to all clients in the conversation room

@@ -52,7 +52,8 @@ const RegisterPage = () => {
     const result = await register({
       name: formData.name,
       email: formData.email,
-      password: formData.password
+      password: formData.password,
+      confirmPassword: formData.confirmPassword
     });
 
     if (!result.success) {

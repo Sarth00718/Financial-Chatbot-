@@ -5,7 +5,9 @@
 
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
-import { FileDown, FileText } from 'lucide-react';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
+import { saveAs } from 'file-saver';
+import { FileDown, FileText, FileType } from 'lucide-react';
 
 const ExportReports = ({ messages, conversationTitle }) => {
   
@@ -105,20 +107,78 @@ const ExportReports = ({ messages, conversationTitle }) => {
     URL.revokeObjectURL(url);
   };
 
+  const exportToDocx = async () => {
+    const children = [
+      new Paragraph({
+        text: conversationTitle || 'Financial AI Chat Report',
+        heading: HeadingLevel.HEADING_1,
+      }),
+      new Paragraph({
+        children: [new TextRun({ text: `Generated: ${new Date().toLocaleString()}`, italics: true })],
+      }),
+      new Paragraph({ text: '' }),
+    ];
+
+    messages.forEach((msg) => {
+      if (msg.role === 'system') return;
+      children.push(
+        new Paragraph({
+          text: msg.role === 'user' ? 'You' : 'AI Assistant',
+          heading: HeadingLevel.HEADING_2,
+        }),
+        new Paragraph({ text: msg.content }),
+        new Paragraph({ text: '' }),
+      );
+    });
+
+    const doc = new Document({ sections: [{ children }] });
+    const blob = await Packer.toBlob(doc);
+    saveAs(blob, `${conversationTitle || 'chat'}_${new Date().toISOString().split('T')[0]}.docx`);
+  };
+
   return (
     <div className="flex items-center gap-1 sm:gap-2">
       <button
         onClick={exportToPDF}
-        className="flex items-center gap-1 sm:gap-2 px-2 py-1.5 sm:px-3 sm:py-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg transition-all duration-200 text-xs sm:text-sm font-medium"
+        className="flex items-center gap-1 sm:gap-2 px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg transition-all duration-200 text-xs sm:text-sm font-medium border"
         title="Export as PDF"
+        style={{
+          backgroundColor: 'var(--color-error-bg)',
+          color: 'var(--color-error-text)',
+          borderColor: 'rgba(185, 28, 28, 0.2)',
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.8'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
       >
         <FileDown className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
         <span className="hidden sm:inline">PDF</span>
       </button>
       <button
+        onClick={exportToDocx}
+        className="flex items-center gap-1 sm:gap-2 px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg transition-all duration-200 text-xs sm:text-sm font-medium border"
+        title="Export as DOCX"
+        style={{
+          backgroundColor: 'var(--color-bg-elevated)',
+          color: 'var(--color-text-secondary)',
+          borderColor: 'var(--color-border)',
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--color-bg-elevated)'; }}
+      >
+        <FileType className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+        <span className="hidden sm:inline">DOCX</span>
+      </button>
+      <button
         onClick={exportToMarkdown}
-        className="flex items-center gap-1 sm:gap-2 px-2 py-1.5 sm:px-3 sm:py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition-all duration-200 text-xs sm:text-sm font-medium"
+        className="flex items-center gap-1 sm:gap-2 px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg transition-all duration-200 text-xs sm:text-sm font-medium border"
         title="Export as Markdown"
+        style={{
+          backgroundColor: 'var(--color-info-bg)',
+          color: 'var(--color-info-text)',
+          borderColor: 'rgba(29, 78, 216, 0.2)',
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.8'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
       >
         <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
         <span className="hidden sm:inline">MD</span>

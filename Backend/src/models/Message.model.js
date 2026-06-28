@@ -33,6 +33,16 @@ const messageSchema = new mongoose.Schema(
         ref: "Document",
       },
     ],
+    // Source citations from RAG retrieval
+    citations: [
+      {
+        page: { type: String, default: "N/A" },
+        source: { type: String, default: "" },
+        type: { type: String, default: "text" },
+        snippet: { type: String, default: "" },
+        namespace: { type: String, default: "" },
+      },
+    ],
   },
   { timestamps: true } // Automatically add createdAt and updatedAt
 );

@@ -1,6 +1,7 @@
 /**
  * Smart Suggestions Component
- * Shows suggested follow-up questions based on context
+ * Shows suggested follow-up questions based on context.
+ * Uses CSS custom properties for full dark/light mode support.
  */
 
 import { Lightbulb, ArrowRight } from 'lucide-react';
@@ -80,10 +81,24 @@ const SmartSuggestions = ({ lastMessage, documents, onSuggestionClick, disabled 
   if (suggestions.length === 0 || disabled) return null;
 
   return (
-    <div className="my-3 sm:my-4 p-3 sm:p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg sm:rounded-xl border border-blue-200">
+    <div
+      className="my-3 sm:my-4 p-3 sm:p-4 rounded-lg sm:rounded-xl border"
+      style={{
+        background: 'linear-gradient(135deg, var(--color-info-bg), var(--color-primary-50))',
+        borderColor: 'rgba(59, 130, 246, 0.25)',
+      }}
+    >
       <div className="flex items-center gap-2 mb-2 sm:mb-3">
-        <Lightbulb className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 flex-shrink-0" />
-        <h4 className="text-xs sm:text-sm font-semibold text-blue-900">Suggested Questions</h4>
+        <Lightbulb
+          className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0"
+          style={{ color: 'var(--color-primary-500)' }}
+        />
+        <h4
+          className="text-xs sm:text-sm font-semibold"
+          style={{ color: 'var(--color-info-text)' }}
+        >
+          Suggested Questions
+        </h4>
       </div>
       <div className="space-y-1.5 sm:space-y-2">
         {suggestions.map((suggestion, index) => (
@@ -91,12 +106,32 @@ const SmartSuggestions = ({ lastMessage, documents, onSuggestionClick, disabled 
             key={index}
             onClick={() => onSuggestionClick(suggestion)}
             disabled={disabled}
-            className="w-full flex items-center justify-between px-3 py-2 sm:px-4 sm:py-2.5 bg-white hover:bg-blue-50 text-left rounded-lg border border-blue-200 hover:border-blue-400 transition-all duration-200 group disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full flex items-center justify-between px-3 py-2 sm:px-4 sm:py-2.5 text-left rounded-lg border transition-all duration-200 group disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{
+              backgroundColor: 'var(--color-bg-surface)',
+              borderColor: 'var(--color-border)',
+            }}
+            onMouseEnter={(e) => {
+              if (!disabled) {
+                e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
+                e.currentTarget.style.borderColor = 'var(--color-border-focus)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--color-bg-surface)';
+              e.currentTarget.style.borderColor = 'var(--color-border)';
+            }}
           >
-            <span className="text-xs sm:text-sm text-gray-700 group-hover:text-blue-700 flex-1 pr-2">
+            <span
+              className="text-xs sm:text-sm flex-1 pr-2 text-left"
+              style={{ color: 'var(--color-text-secondary)' }}
+            >
               {suggestion}
             </span>
-            <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400 group-hover:text-blue-600 transition-colors flex-shrink-0" />
+            <ArrowRight
+              className="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-colors flex-shrink-0"
+              style={{ color: 'var(--color-text-muted)' }}
+            />
           </button>
         ))}
       </div>

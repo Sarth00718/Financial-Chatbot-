@@ -4,7 +4,7 @@ Defines the structure of API requests and responses
 """
 
 from pydantic import BaseModel, Field
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 class ProcessDocumentRequest(BaseModel):
     """
@@ -76,19 +76,54 @@ class DeleteDocumentRequest(BaseModel):
             }
         }
 
+class Citation(BaseModel):
+    """Source citation from retrieved document chunks."""
+    page: str = Field(default="N/A", description="Page number in source document")
+    source: str = Field(default="", description="Source file or extraction type")
+    type: str = Field(default="text", description="Content type: text, image, scanned_page, table")
+    snippet: str = Field(default="", description="Relevant text excerpt")
+    namespace: str = Field(default="", description="Vector namespace identifier")
+
+
 class QueryResponse(BaseModel):
     """
     Response model for query endpoint
-    Returns the AI's answer
+    Returns the AI's answer with optional source citations
     """
     answer: str = Field(..., description="AI-generated answer to the question")
+    citations: List[Citation] = Field(default=[], description="Source citations from RAG retrieval")
     
     class Config:
         json_schema_extra = {
             "example": {
-                "answer": "The revenue in Q4 was $2.5 million, representing a 15% increase from Q3."
+                "answer": "The revenue in Q4 was $2.5 million, representing a 15% increase from Q3.",
+                "citations": [
+                    {
+                        "page": "12",
+                        "source": "annual_report.pdf",
+                        "type": "text",
+                        "snippet": "Q4 revenue totaled $2.5 million...",
+                        "namespace": "doc-abc123"
+                    }
+                ]
             }
         }
+
+
+class EnterpriseAnalysisRequest(BaseModel):
+    """Request for enterprise financial analysis endpoints."""
+    analysisType: str = Field(..., description="Type of analysis to perform")
+    vectorNamespaces: List[str] = Field(default=[], description="Document namespaces to analyze")
+    question: str = Field(default="", description="Optional custom question or focus area")
+    chatHistory: List[Dict[str, str]] = Field(default=[], description="Optional chat history for explain mode")
+
+
+class EnterpriseAnalysisResponse(BaseModel):
+    """Response from enterprise analysis endpoints."""
+    analysisType: str
+    answer: str
+    citations: List[Citation] = Field(default=[])
+    metadata: Dict = Field(default={})
 
 
 class ProcessDocumentResponse(BaseModel):

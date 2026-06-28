@@ -392,8 +392,216 @@ class DocumentProcessor:
         print(f"\n[PDF] Extraction complete — {len(all_chunks)} total chunks")
         return all_chunks
 
+    def process_file(self, file_path: str, file_name: str) -> List[Document]:
+        """
+        Process any supported file format and return Document chunks.
+        """
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"File not found: {file_path}")
+            
+        ext = os.path.splitext(file_name.lower())[1]
+        print(f"\n[PARSER] Processing file: {file_name} with extension {ext}")
+        
+        if ext == ".pdf":
+            return self.process_pdf(file_path)
+        elif ext in (".docx", ".doc"):
+            return self.process_docx(file_path)
+        elif ext in (".txt", ".md"):
+            return self.process_txt(file_path)
+        elif ext == ".csv":
+            return self.process_csv(file_path)
+        elif ext in (".xls", ".xlsx"):
+            return self.process_excel(file_path)
+        elif ext in (".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".webp"):
+            return self.process_image(file_path)
+        else:
+            try:
+                return self.process_txt(file_path)
+            except Exception:
+                return self.process_pdf(file_path)
+
+    def process_docx(self, file_path: str) -> List[Document]:
+        """Extract text from DOCX files with docx library or pure python zipfile fallback."""
+        text = ""
+        try:
+            import docx
+            doc = docx.Document(file_path)
+            text = "\n".join([p.text for p in doc.paragraphs])
+            # extract tables
+            for table in doc.tables:
+                for row in table.rows:
+                    text += "\n" + " | ".join([cell.text.strip() for cell in row.cells])
+        except Exception:
+            # Fallback to pure python zip file parser
+            try:
+                import zipfile
+                import xml.etree.ElementTree as ET
+                with zipfile.ZipFile(file_path) as zf:
+                    xml_content = zf.read('word/document.xml')
+                    root = ET.fromstring(xml_content)
+                    text_parts = []
+                    for elem in root.iter():
+                        if elem.tag.endswith('t'):
+                            text_parts.append(elem.text or "")
+                    text = "".join(text_parts)
+            except Exception as e:
+                raise ValueError(f"Failed to extract text from DOCX file: {e}")
+        
+        if not text.strip():
+            raise ValueError("No text could be extracted from this DOCX file.")
+            
+        chunks = self.text_splitter.create_documents(
+            [text],
+            metadatas=[{
+                "page": 1,
+                "type": "text",
+                "source": "docx_extraction",
+                "char_count": len(text)
+            }]
+        )
+        return chunks
+
+    def process_txt(self, file_path: str) -> List[Document]:
+        """Extract text from plain text files."""
+        try:
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                text = f.read()
+        except Exception as e:
+            raise ValueError(f"Failed to read TXT file: {e}")
+            
+        if not text.strip():
+            raise ValueError("No text found in the TXT file.")
+            
+        chunks = self.text_splitter.create_documents(
+            [text],
+            metadatas=[{
+                "page": 1,
+                "type": "text",
+                "source": "txt_extraction",
+                "char_count": len(text)
+            }]
+        )
+        return chunks
+
+    def process_csv(self, file_path: str) -> List[Document]:
+        """Extract text from CSV files."""
+        try:
+            import csv
+            lines = []
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                reader = csv.reader(f)
+                for row in reader:
+                    sanitised = [c.strip() for c in row]
+                    if any(sanitised):
+                        lines.append(" | ".join(sanitised))
+            text = "\n".join(lines)
+        except Exception as e:
+            raise ValueError(f"Failed to parse CSV file: {e}")
+            
+        if not text.strip():
+            raise ValueError("CSV file is empty.")
+            
+        chunks = self.text_splitter.create_documents(
+            [text],
+            metadatas=[{
+                "page": 1,
+                "type": "table",
+                "source": "csv_extraction",
+                "char_count": len(text)
+            }]
+        )
+        return chunks
+
+    def process_excel(self, file_path: str) -> List[Document]:
+        """Extract text from Excel files (.xlsx, .xls)."""
+        text = ""
+        try:
+            # Try pandas first
+            import pandas as pd
+            excel_file = pd.ExcelFile(file_path)
+            sheets_text = []
+            for sheet_name in excel_file.sheet_names:
+                df = excel_file.parse(sheet_name)
+                sheet_lines = [f"\n[SHEET: {sheet_name}]"]
+                headers = [str(col).strip() for col in df.columns]
+                sheet_lines.append(" | ".join(headers))
+                for _, row in df.iterrows():
+                    row_vals = [str(val).strip() for val in row.values]
+                    if any(v and v != "nan" for v in row_vals):
+                        sheet_lines.append(" | ".join(row_vals))
+                sheets_text.append("\n".join(sheet_lines))
+            text = "\n\n".join(sheets_text)
+        except Exception:
+            # Try openpyxl directly
+            try:
+                import openpyxl
+                wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+                sheets_text = []
+                for sheet in wb.worksheets:
+                    sheet_lines = [f"\n[SHEET: {sheet.title}]"]
+                    for row in sheet.iter_rows(values_only=True):
+                        row_vals = [str(cell).strip() if cell is not None else "" for cell in row]
+                        if any(row_vals):
+                            sheet_lines.append(" | ".join(row_vals))
+                    sheets_text.append("\n".join(sheet_lines))
+                text = "\n\n".join(sheets_text)
+            except Exception as e:
+                raise ValueError(f"Failed to parse Excel file: {e}")
+                
+        if not text.strip():
+            raise ValueError("Excel file is empty.")
+            
+        chunks = self.text_splitter.create_documents(
+            [text],
+            metadatas=[{
+                "page": 1,
+                "type": "table",
+                "source": "excel_extraction",
+                "char_count": len(text)
+            }]
+        )
+        return chunks
+
+    def process_image(self, file_path: str) -> List[Document]:
+        """Extract text from image files using OCR or vision LLM."""
+        try:
+            from PIL import Image
+            pil_img = Image.open(file_path)
+            
+            ocr_text = ""
+            if ocr_service.ocr_enabled:
+                ocr_text = ocr_service.extract_text_from_image(pil_img)
+                
+            if not ocr_text or len(ocr_text.strip()) < 30:
+                print(f"    [IMAGE] OCR yielded minimal results, trying vision description")
+                try:
+                    with open(file_path, "rb") as f:
+                        img_bytes = f.read()
+                    desc = self._describe_image_bytes(
+                        img_bytes,
+                        context=f"Uploaded image file: {os.path.basename(file_path)}"
+                    )
+                    ocr_text = f"[Image Description]:\n{desc}"
+                except Exception as ve:
+                    print(f"    [WARNING] Vision description for uploaded image failed: {ve}")
+                    if not ocr_text:
+                        ocr_text = "[Image could not be processed]"
+            
+            chunks = self.text_splitter.create_documents(
+                [ocr_text],
+                metadatas=[{
+                    "page": 1,
+                    "type": "image",
+                    "source": "image_ocr",
+                    "char_count": len(ocr_text)
+                }]
+            )
+            return chunks
+        except Exception as e:
+            raise ValueError(f"Failed to process image: {e}")
+
     # ------------------------------------------------------------------
-    # COMPLETE PIPELINE (PDF → Vectors → Notify)
+    # COMPLETE PIPELINE (File → Vectors → Notify)
     # ------------------------------------------------------------------
 
     def process_document_pipeline(
@@ -417,7 +625,15 @@ class DocumentProcessor:
 
         try:
             # Step 1 — Extract
-            chunks = self.process_pdf(file_path)
+            chunks = self.process_file(file_path, file_name)
+
+            # Enrich chunk metadata
+            for chunk in chunks:
+                if chunk.metadata is None:
+                    chunk.metadata = {}
+                chunk.metadata["document_id"] = document_id
+                chunk.metadata["filename"] = file_name
+                chunk.metadata["vector_namespace"] = vector_namespace
 
             # Step 2 — Embed + store
             print(f"\n[VECTOR] Creating embeddings for {len(chunks)} chunks…")

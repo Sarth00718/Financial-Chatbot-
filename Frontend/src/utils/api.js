@@ -217,5 +217,30 @@ export const adminAPI = {
   getHealth: () => api.get('/admin/health'),
 };
 
+// ============================================
+// ENTERPRISE API
+// ============================================
+
+export const enterpriseAPI = {
+  getAnalysisTypes: () => api.get('/enterprise/analysis-types'),
+
+  analyze: (data) => api.post('/enterprise/analyze', data, { timeout: 90000 }),
+
+  getAuditSummary: (data) => api.post('/enterprise/audit-summary', data, { timeout: 90000 }),
+
+  advancedSearch: (q, type = 'all') =>
+    api.get('/enterprise/search', { params: { q, type } }),
+
+  // Watchlist
+  getWatchlist: () => api.get('/enterprise/watchlist'),
+  addToWatchlist: (data) => api.post('/enterprise/watchlist', data),
+  removeFromWatchlist: (id) => api.delete(`/enterprise/watchlist/${id}`),
+
+  // Bookmarks
+  getBookmarks: () => api.get('/enterprise/bookmarks'),
+  createBookmark: (data) => api.post('/enterprise/bookmarks', data),
+  deleteBookmark: (id) => api.delete(`/enterprise/bookmarks/${id}`),
+};
+
 // Export default api instance for custom requests
 export default api;

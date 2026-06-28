@@ -61,12 +61,22 @@ export const verifyRefreshToken = (token) => {
  * @param {Number} maxAge - Cookie expiration in milliseconds
  */
 export const setTokenCookie = (res, name, token, maxAge) => {
-  res.cookie(name, token, {
+  const isProduction = process.env.NODE_ENV === "production";
+  const sameSite = process.env.COOKIE_SAME_SITE || (isProduction ? "none" : "lax");
+  const secure = process.env.COOKIE_SECURE === "true" || isProduction;
+  const cookieOptions = {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-    maxAge: maxAge,
-  });
+    secure,
+    sameSite,
+    maxAge,
+    path: "/",
+  };
+
+  if (process.env.COOKIE_DOMAIN) {
+    cookieOptions.domain = process.env.COOKIE_DOMAIN;
+  }
+
+  res.cookie(name, token, cookieOptions);
 };
 
 /**
@@ -74,6 +84,20 @@ export const setTokenCookie = (res, name, token, maxAge) => {
  * @param {Object} res - Express response object
  */
 export const clearAuthCookies = (res) => {
-  res.clearCookie("accessToken");
-  res.clearCookie("refreshToken");
+  const isProduction = process.env.NODE_ENV === "production";
+  const sameSite = process.env.COOKIE_SAME_SITE || "none";
+  const secure = process.env.COOKIE_SECURE === "true" || isProduction;
+  const cookieOptions = {
+    httpOnly: true,
+    secure,
+    sameSite,
+    path: "/",
+  };
+
+  if (process.env.COOKIE_DOMAIN) {
+    cookieOptions.domain = process.env.COOKIE_DOMAIN;
+  }
+
+  res.clearCookie("accessToken", cookieOptions);
+  res.clearCookie("refreshToken", cookieOptions);
 };
