@@ -128,26 +128,34 @@ Click **Deploy Web Service**
    - **Start Command**: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
    - **Root Directory**: `Python-Backend`
 
-### 4.2 Add System Dependencies
+### 4.2 Configure OCR Provider (Cloud-based, No System Dependencies!)
 
-Create `Python-Backend/build.sh`:
+Your Python backend now uses **Cloud OCR APIs** instead of Tesseract. Choose one:
 
-```bash
-#!/bin/bash
-set -e
-
-# Install system dependencies (tesseract for OCR)
-apt-get update
-apt-get install -y tesseract-ocr
-
-# Install Python dependencies
-pip install -r requirements.txt
+**Option A: OCR.Space (Recommended - Free, No Setup)**
+```
+OCR_PROVIDER=ocr_space
+OCR_SPACE_API_KEY=K87899142  # Free tier (25,000 calls/month)
 ```
 
-In Render Dashboard, add to **Build Command**:
+**Option B: Google Cloud Vision (Better Accuracy)**
+1. Get API key at https://console.cloud.google.com
+2. Set:
 ```
-chmod +x build.sh && ./build.sh
+OCR_PROVIDER=google_vision
+GOOGLE_VISION_API_KEY=your_api_key
 ```
+
+**Option C: Azure AI Vision (Enterprise)**
+1. Get credentials at https://portal.azure.com
+2. Set:
+```
+OCR_PROVIDER=azure_vision
+AZURE_VISION_API_KEY=your_key
+AZURE_VISION_ENDPOINT=https://your-region.api.cognitive.microsoft.com
+```
+
+See [OCR_CONFIGURATION_GUIDE.md](OCR_CONFIGURATION_GUIDE.md) for detailed setup.
 
 ### 4.3 Add Environment Variables
 
@@ -158,11 +166,18 @@ In Render Dashboard:
    - `LLM_MODEL=llama-3.1-8b-instant`
    - `EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2`
    - `NODE_WEBHOOK_URL=https://your-nodejs-backend.onrender.com`
-   - `TESSERACT_CMD=/usr/bin/tesseract`
+   - **`OCR_PROVIDER=ocr_space`** (or your chosen provider)
+   - **`OCR_SPACE_API_KEY=K87899142`** (or your provider's API key)
 
 ### 4.4 Deploy
 
 Click **Deploy Web Service**
+
+**✅ Benefits:**
+- No system dependencies (no Tesseract installation needed)
+- Works on any platform instantly
+- Better OCR accuracy with AI models
+- Faster deployment process
 
 ---
 
@@ -240,17 +255,38 @@ JWT_SECRET=<generate-random-secret>
 JWT_REFRESH_SECRET=<generate-random-secret>
 GROQ_API_KEY=<your-api-key>
 CORS_ORIGIN=https://your-frontend.vercel.app
-NODE_WEBHOOK_URL=https://your-nodejs-backend.onrender.com
-TESSERACT_CMD=/usr/bin/tesseract
+PYTHON_BACKEND_URL=https://your-python-backend.onrender.com
 ```
 
-### Python Backend (Render)
+### Python Backend (Render) - with Cloud OCR
+
+**Required:**
 ```
 GROQ_API_KEY=<your-api-key>
 LLM_MODEL=llama-3.1-8b-instant
 EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
 NODE_WEBHOOK_URL=https://your-nodejs-backend.onrender.com
-TESSERACT_CMD=/usr/bin/tesseract
+```
+
+**OCR Configuration (choose one):**
+
+Option A - OCR.Space (Free):
+```
+OCR_PROVIDER=ocr_space
+OCR_SPACE_API_KEY=K87899142
+```
+
+Option B - Google Cloud Vision:
+```
+OCR_PROVIDER=google_vision
+GOOGLE_VISION_API_KEY=<your-api-key>
+```
+
+Option C - Azure AI Vision:
+```
+OCR_PROVIDER=azure_vision
+AZURE_VISION_API_KEY=<your-api-key>
+AZURE_VISION_ENDPOINT=https://your-region.api.cognitive.microsoft.com
 ```
 
 ---
@@ -268,18 +304,26 @@ TESSERACT_CMD=/usr/bin/tesseract
 - View logs in Render dashboard: **Logs** tab
 
 ### Python Backend Issues
-- Check Python version compatibility
+- Check Python version compatibility (3.9+)
 - Verify all packages in `requirements.txt`
-- Tesseract might need additional build time
 - View logs in Render dashboard
+
+### OCR Not Working
+- Check `OCR_PROVIDER` is set in environment variables
+- For OCR.Space: Verify API key and free tier hasn't exceeded 25,000 calls/month
+- For Google Vision: Verify API key is valid and billing is enabled
+- For Azure: Verify API key and endpoint URL
+- See [OCR_CONFIGURATION_GUIDE.md](OCR_CONFIGURATION_GUIDE.md)
 
 ### CORS Errors
 - Ensure `CORS_ORIGIN` matches frontend URL in Node backend
 - Check Socket.IO CORS configuration
+- Verify all URLs use HTTPS in production
 
 ### Socket.IO Connection Issues
 - Update Socket.IO connection URL in frontend
-- Add WebSocket support in Render (should be automatic)
+- Add WebSocket support in Render (automatic)
+- Check browser console for connection errors
 
 ---
 

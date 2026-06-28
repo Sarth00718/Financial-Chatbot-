@@ -40,7 +40,18 @@ class Settings(BaseSettings):
     VISION_MODEL: str = "meta-llama/llama-4-scout-17b-16e-instruct"
     
     # OCR Configuration
-    TESSERACT_CMD: str = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+    # Choose OCR provider: "ocr_space", "google_vision", or "azure_vision"
+    OCR_PROVIDER: str = "ocr_space"  # Default to free OCR.Space
+    
+    # OCR.Space Configuration (Free tier - no auth required)
+    OCR_SPACE_API_KEY: str = "K87899142"  # Free tier key
+    
+    # Google Cloud Vision Configuration (requires API key)
+    GOOGLE_VISION_API_KEY: str = ""
+    
+    # Azure AI Vision Configuration (requires API key and endpoint)
+    AZURE_VISION_API_KEY: str = ""
+    AZURE_VISION_ENDPOINT: str = ""
     
     # Document Processing Configuration
     CHUNK_SIZE: int = 1000
