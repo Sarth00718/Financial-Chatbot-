@@ -3,6 +3,7 @@
  * Configures middleware and routes
  */
 
+import dotenv from "dotenv";
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -21,6 +22,8 @@ import documentRoutes from "./routes/document.routes.js";
 import messageRoutes from "./routes/message.routes.js";
 import analyticsRoutes from "./routes/analytics.routes.js";
 import enterpriseRoutes from "./routes/enterprise.routes.js";
+
+dotenv.config();
 
 // Get directory path (needed for ES modules)
 const __filename = fileURLToPath(import.meta.url);
@@ -52,18 +55,35 @@ app.use(cookieParser());
  * CORS Configuration
  * Allows frontend to communicate with backend
  */
-const allowedOrigins = (process.env.CORS_ORIGIN || "http://localhost:5173")
+const allowedOrigins = (process.env.CORS_ORIGIN || "")
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+const defaultDevOrigins = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+];
+
+const allowedCorsOrigins = Array.from(
+  new Set([
+    ...allowedOrigins,
+    ...(process.env.NODE_ENV === "development" ? defaultDevOrigins : []),
+  ])
+);
+
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps or Postman)
+      // Allow requests with no origin (like Postman or native mobile clients)
       if (!origin) return callback(null, true);
-      
-      if (allowedOrigins.includes(origin)) {
+
+      const normalizedOrigin = origin.trim();
+      const isAllowed = allowedCorsOrigins.some(
+        (allowedOrigin) => allowedOrigin.toLowerCase() === normalizedOrigin.toLowerCase()
+      );
+
+      if (isAllowed) {
         callback(null, true);
       } else {
         callback(new Error("CORS not allowed for this origin"));

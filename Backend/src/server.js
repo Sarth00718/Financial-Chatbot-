@@ -18,7 +18,7 @@ dotenv.config();
 
 // Configuration
 const PORT = process.env.PORT || 8000;
-const CORS_ORIGIN = process.env.CORS_ORIGIN || "http://localhost:5173";
+const CORS_ORIGIN = process.env.CORS_ORIGIN || "";
 
 /**
  * Create HTTP server
@@ -29,10 +29,15 @@ const httpServer = http.createServer(app);
  * Configure Socket.IO
  * Enables real-time bidirectional communication
  */
+const allowedSocketOrigins = CORS_ORIGIN
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 const io = new Server(httpServer, {
   pingTimeout: 60000, // 60 seconds
   cors: {
-    origin: CORS_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean),
+    origin: allowedSocketOrigins.length === 0 ? true : allowedSocketOrigins,
     credentials: true,
   },
 });
@@ -146,7 +151,7 @@ const startServer = async () => {
       console.log("=".repeat(50));
       console.log(`📍 Server URL: http://localhost:${PORT}`);
       console.log(`🔌 Socket.IO: Enabled`);
-      console.log(`🌐 CORS Origin: ${CORS_ORIGIN}`);
+      console.log(`🌐 CORS Origin: ${CORS_ORIGIN || 'not configured (allows all origins)'}`);
       console.log(`📁 Uploads Directory: ./uploads`);
       console.log("=".repeat(50) + "\n");
     });

@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { GOOGLE_AUTH_URL } from '../utils/api';
 import { Bot, Mail, Lock, Eye, EyeOff, ArrowRight, Sparkles } from 'lucide-react';
 import ThemeToggle from '../components/ThemeToggle';
 
@@ -56,7 +57,7 @@ const LoginPage = () => {
         <div className="hidden lg:block space-y-8 px-8">
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center shadow-lg">
+              <div className="w-14 h-14 rounded-2xl bg-linear-to-br from-blue-600 to-blue-700 flex items-center justify-center shadow-lg">
                 <Bot className="w-8 h-8 text-white" />
               </div>
               <div>
@@ -79,7 +80,7 @@ const LoginPage = () => {
 
           <div className="space-y-4">
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+              <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
                 <Sparkles className="w-5 h-5 text-blue-600" />
               </div>
               <div>
@@ -93,7 +94,7 @@ const LoginPage = () => {
             </div>
             
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center flex-shrink-0">
+              <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
                 <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                 </svg>
@@ -109,7 +110,7 @@ const LoginPage = () => {
             </div>
 
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center flex-shrink-0">
+              <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center shrink-0">
                 <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
@@ -130,7 +131,7 @@ const LoginPage = () => {
         <div className="w-full max-w-md mx-auto">
           {/* Mobile Logo */}
           <div className="lg:hidden text-center mb-8">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center shadow-lg mx-auto mb-4">
+            <div className="w-16 h-16 rounded-2xl bg-linear-to-br from-blue-600 to-blue-700 flex items-center justify-center shadow-lg mx-auto mb-4">
               <Bot className="w-9 h-9 text-white" />
             </div>
             <h1 className="text-2xl font-bold gradient-text">FinChatBot</h1>
@@ -224,7 +225,7 @@ const LoginPage = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full py-3 px-4 bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <>
@@ -244,10 +245,7 @@ const LoginPage = () => {
               <button
                 type="button"
                 onClick={() => {
-                  const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
-                  const normalized = apiBase.replace(/\/api\/v1\/?$/, '');
-                  const url = `${normalized}/api/v1/auth/google`;
-                  window.location.href = url;
+                  window.location.href = GOOGLE_AUTH_URL;
                 }}
                 className="w-full py-3 px-4 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all duration-200 flex items-center justify-center gap-2"
               >
@@ -288,3 +286,4 @@ const LoginPage = () => {
 };
 
 export default LoginPage;
+  

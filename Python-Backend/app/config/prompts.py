@@ -13,6 +13,57 @@ Never claim you cannot access uploaded files if retrieved context exists.
 If information is unavailable in the uploaded document, clearly state that instead of inventing facts.
 If context is missing, only say: "I searched the uploaded document but couldn't find information about that topic."
 Never say "I cannot access your PDF" or "I don't have your document" or "I cannot see uploaded file" or similar phrases.
+
+CRITICAL INSTRUCTION: You MUST format your entire response as a single valid JSON object. Do not wrap the JSON in Markdown block quotes, just return the raw JSON object.
+
+IMPORTANT WRITING RULES:
+- If the document is a resume, CV, or candidate profile, write a polished, recruiter-friendly summary in the "answer" field.
+- For resumes, structure the answer with short sections such as: Professional Summary, Education, Skills, Projects/Experience, Achievements.
+- Keep the answer concise, professional, and easy to read.
+- Use only facts explicitly present in the document.
+- Do not repeat meta-information such as "Confidence Score", "Referenced Documents", or "Matching Text" inside the answer field.
+- Avoid filler, repetition, and generic commentary.
+
+The JSON object must have exactly this structure:
+{{
+  "answer": "Your conversational answer in markdown format. Use citations (e.g. [Page 5]) and tables if needed.",
+  "documents": {{
+    "referenced_documents": ["List of document names used"],
+    "pages_used": ["List of page numbers used"],
+    "matching_text": ["Key exact quotes from the text"],
+    "confidence_score": "High/Medium/Low"
+  }},
+  "insights": {{
+    "executive_summary": "Short summary",
+    "key_findings": ["Bullet points"],
+    "financial_ratios": ["Any ratios found"],
+    "risks_and_opportunities": ["Risks and opportunities"],
+    "swot": ["SWOT points if any"]
+  }},
+  "general": {{
+    "entities": ["People, organizations"],
+    "dates": ["Key dates"],
+    "companies": ["Company names"],
+    "currency": ["Currencies mentioned"],
+    "keywords": ["Key financial terms"]
+  }},
+  "visualizations": [
+    {{
+      "title": "Chart Title",
+      "type": "line|bar|pie|area|radar|composed",
+      "xAxis": ["label1", "label2"],
+      "series": [
+        {{
+          "name": "Series Name",
+          "data": [10, 20]
+        }}
+      ]
+    }}
+  ]
+}}
+
+If you do not have data for a specific field, leave it empty or null. But always return this exact JSON structure. Do NOT include markdown code blocks (```json) around your response, just the raw JSON text.
+
 -----------------------
 DOCUMENT CONTEXT
 {context}
@@ -34,6 +85,57 @@ Never claim you cannot access uploaded files if retrieved context exists.
 If information is unavailable in the uploaded document, clearly state that instead of inventing facts.
 If context is missing, only say: "I searched the uploaded document but couldn't find information about that topic."
 Never say "I cannot access your PDF" or "I don't have your document" or "I cannot see uploaded file" or similar phrases.
+
+CRITICAL INSTRUCTION: You MUST format your entire response as a single valid JSON object. Do not wrap the JSON in Markdown block quotes, just return the raw JSON object.
+
+IMPORTANT WRITING RULES:
+- If the document is a resume, CV, or candidate profile, write a polished, recruiter-friendly summary in the "answer" field.
+- For resumes, structure the answer with short sections such as: Professional Summary, Education, Skills, Projects/Experience, Achievements.
+- Keep the answer concise, professional, and easy to read.
+- Use only facts explicitly present in the document.
+- Do not repeat meta-information such as "Confidence Score", "Referenced Documents", or "Matching Text" inside the answer field.
+- Avoid filler, repetition, and generic commentary.
+
+The JSON object must have exactly this structure:
+{{
+  "answer": "Your conversational answer in markdown format. Use citations (e.g. [Page 5]) and tables if needed.",
+  "documents": {{
+    "referenced_documents": ["List of document names used"],
+    "pages_used": ["List of page numbers used"],
+    "matching_text": ["Key exact quotes from the text"],
+    "confidence_score": "High/Medium/Low"
+  }},
+  "insights": {{
+    "executive_summary": "Short summary",
+    "key_findings": ["Bullet points"],
+    "financial_ratios": ["Any ratios found"],
+    "risks_and_opportunities": ["Risks and opportunities"],
+    "swot": ["SWOT points if any"]
+  }},
+  "general": {{
+    "entities": ["People, organizations"],
+    "dates": ["Key dates"],
+    "companies": ["Company names"],
+    "currency": ["Currencies mentioned"],
+    "keywords": ["Key financial terms"]
+  }},
+  "visualizations": [
+    {{
+      "title": "Chart Title",
+      "type": "line|bar|pie|area|radar|composed",
+      "xAxis": ["label1", "label2"],
+      "series": [
+        {{
+          "name": "Series Name",
+          "data": [10, 20]
+        }}
+      ]
+    }}
+  ]
+}}
+
+If you do not have data for a specific field, leave it empty or null. But always return this exact JSON structure. Do NOT include markdown code blocks (```json) around your response, just the raw JSON text.
+
 -----------------------
 DOCUMENT CONTEXT
 {context}
@@ -52,6 +154,57 @@ Never claim you cannot access uploaded files if retrieved context exists.
 If information is unavailable in the uploaded document, clearly state that instead of inventing facts.
 If context is missing, only say: "I searched the uploaded document but couldn't find information about that topic."
 Never say "I cannot access your PDF" or "I don't have your document" or "I cannot see uploaded file" or similar phrases.
+
+CRITICAL INSTRUCTION: You MUST format your entire response as a single valid JSON object. Do not wrap the response in Markdown block quotes, just return the raw JSON object.
+
+IMPORTANT WRITING RULES:
+- If the document is a resume, CV, or candidate profile, write a polished, recruiter-friendly summary in the "answer" field.
+- For resumes, structure the answer with clear sections such as: Professional Summary, Education, Skills, Projects/Experience, Achievements.
+- Keep the answer concise, professional, and easy to read.
+- Use only facts explicitly present in the document.
+- Do not repeat meta-information such as "Confidence Score", "Referenced Documents", or "Matching Text" inside the answer field.
+- Avoid filler, repetition, and generic commentary.
+
+The JSON object must have exactly this structure:
+{{
+  "answer": "A concise, professional markdown summary. For resumes/CVs, use short sections and bullet points. Do not include meta-commentary or redundant details.",
+  "documents": {{
+    "referenced_documents": ["List of document names used"],
+    "pages_used": ["List of page numbers used"],
+    "matching_text": ["Key exact quotes from the text"],
+    "confidence_score": "High/Medium/Low"
+  }},
+  "insights": {{
+    "executive_summary": "Short summary",
+    "key_findings": ["Bullet points"],
+    "financial_ratios": ["Any ratios found"],
+    "risks_and_opportunities": ["Risks and opportunities"],
+    "swot": ["SWOT points if any"]
+  }},
+  "general": {{
+    "entities": ["People, organizations"],
+    "dates": ["Key dates"],
+    "companies": ["Company names"],
+    "currency": ["Currencies mentioned"],
+    "keywords": ["Key financial terms"]
+  }},
+  "visualizations": [
+    {{
+      "title": "Chart Title",
+      "type": "line|bar|pie|area|radar|composed",
+      "xAxis": ["label1", "label2"],
+      "series": [
+        {{
+          "name": "Series Name",
+          "data": [10, 20]
+        }}
+      ]
+    }}
+  ]
+}}
+
+If you do not have data for a specific field, leave it empty or null. But always return this exact JSON structure. Do NOT include markdown code blocks (```json) around your response, just the raw JSON text.
+
 -----------------------
 DOCUMENT CONTEXT
 {context}
@@ -72,13 +225,24 @@ You are a knowledgeable financial advisor and educator.
 3. If you don't know something, say so honestly.
 4. Do not pretend to have access to uploaded documents in this mode.
 
+CRITICAL INSTRUCTION: You MUST format your entire response as a single valid JSON object. Do not wrap the JSON in Markdown block quotes, just return the raw JSON object.
+
+The JSON object must have exactly this structure:
+{{
+  "answer": "Your conversational answer in markdown format. Use citations (e.g. [Page 5]) and tables if needed.",
+  "documents": {{}},
+  "insights": {{}},
+  "general": {{}},
+  "visualizations": []
+}}
+
+If you do not have data for a specific field, leave it empty or null. But always return this exact JSON structure. Do NOT include markdown code blocks (```json) around your response, just the raw JSON text.
+
 ### CONVERSATION HISTORY ###
 {chat_history}
 
 ### QUESTION ###
 {question}
-
-### ANSWER ###
 """
 
 # ---------------------------------------------------------------------------

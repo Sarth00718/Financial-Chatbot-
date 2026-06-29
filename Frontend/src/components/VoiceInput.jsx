@@ -1,19 +1,19 @@
 /**
- * Voice Input Component
- * Speech-to-text and text-to-speech functionality
+ * Voice Input
+ * Speech-to-text (mic) and text-to-speech (speaker) hook + MUI buttons.
  */
 
 import { useState, useEffect } from 'react';
-import { Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
+import { IconButton, Tooltip } from '@mui/material';
+import { Mic, MicOff, VolumeUp, VolumeOff } from '@mui/icons-material';
 
-const VoiceInput = ({ onTranscript, disabled }) => {
+const useVoice = ({ onTranscript }) => {
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [recognition, setRecognition] = useState(null);
   const [synthesis, setSynthesis] = useState(null);
 
   useEffect(() => {
-    // Initialize Speech Recognition
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       const recognitionInstance = new SpeechRecognition();
@@ -26,40 +26,25 @@ const VoiceInput = ({ onTranscript, disabled }) => {
         onTranscript(transcript);
         setIsListening(false);
       };
-
-      recognitionInstance.onerror = (event) => {
-        console.error('Speech recognition error:', event.error);
-        setIsListening(false);
-      };
-
-      recognitionInstance.onend = () => {
-        setIsListening(false);
-      };
+      recognitionInstance.onerror = () => setIsListening(false);
+      recognitionInstance.onend = () => setIsListening(false);
 
       setRecognition(recognitionInstance);
     }
 
-    // Initialize Speech Synthesis
     if ('speechSynthesis' in window) {
       setSynthesis(window.speechSynthesis);
     }
 
     return () => {
-      if (recognition) {
-        recognition.stop();
-      }
-      if (synthesis) {
-        synthesis.cancel();
-      }
+      recognition?.stop();
+      synthesis?.cancel();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const toggleListening = () => {
-    if (!recognition) {
-      alert('Speech recognition is not supported in your browser');
-      return;
-    }
-
+    if (!recognition) return;
     if (isListening) {
       recognition.stop();
       setIsListening(false);
@@ -70,26 +55,20 @@ const VoiceInput = ({ onTranscript, disabled }) => {
   };
 
   const speak = (text) => {
-    if (!synthesis) {
-      alert('Speech synthesis is not supported in your browser');
-      return;
-    }
-
+    if (!synthesis) return;
     if (isSpeaking) {
       synthesis.cancel();
       setIsSpeaking(false);
-    } else {
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
-      utterance.volume = 1.0;
-
-      utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = () => setIsSpeaking(false);
-
-      synthesis.speak(utterance);
+      return;
     }
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1;
+    utterance.pitch = 1;
+    utterance.volume = 1;
+    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+    synthesis.speak(utterance);
   };
 
   return {
@@ -101,55 +80,51 @@ const VoiceInput = ({ onTranscript, disabled }) => {
   };
 };
 
-// Voice Button Component
 export const VoiceButton = ({ onTranscript, disabled }) => {
-  const { isListening, toggleListening, isSupported } = VoiceInput({ onTranscript, disabled });
-
+  const { isListening, toggleListening, isSupported } = useVoice({ onTranscript });
   if (!isSupported) return null;
 
   return (
-    <button
-      type="button"
-      onClick={toggleListening}
-      disabled={disabled}
-      className={`
-        p-1.5 sm:p-2 rounded-lg transition-all duration-200
-        ${isListening 
-          ? 'bg-red-500 hover:bg-red-600 text-white animate-pulse' 
-          : 'hover:bg-gray-100 text-gray-600'
-        }
-        ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-      `}
-      title={isListening ? 'Stop listening' : 'Start voice input'}
-    >
-      {isListening ? <MicOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Mic className="w-4 h-4 sm:w-5 sm:h-5" />}
-    </button>
+    <Tooltip title={isListening ? 'Stop listening' : 'Start voice input'}>
+      <span>
+        <IconButton
+          size="small"
+          onClick={toggleListening}
+          disabled={disabled}
+          sx={{
+            color: isListening ? '#fff' : 'text.secondary',
+            bgcolor: isListening ? 'error.main' : 'transparent',
+            '&:hover': { bgcolor: isListening ? 'error.dark' : 'action.hover' },
+          }}
+        >
+          {isListening ? <MicOff fontSize="small" /> : <Mic fontSize="small" />}
+        </IconButton>
+      </span>
+    </Tooltip>
   );
 };
 
-// Speaker Button Component
 export const SpeakerButton = ({ text, disabled }) => {
-  const { isSpeaking, speak } = VoiceInput({ onTranscript: () => {}, disabled });
-
+  const { isSpeaking, speak } = useVoice({ onTranscript: () => {} });
   if (!text) return null;
 
   return (
-    <button
-      onClick={() => speak(text)}
-      disabled={disabled}
-      className={`
-        p-1.5 sm:p-2 rounded-lg transition-all duration-200
-        ${isSpeaking 
-          ? 'bg-blue-100 text-blue-600' 
-          : 'hover:bg-gray-100 text-gray-600'
-        }
-        ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-      `}
-      title={isSpeaking ? 'Stop speaking' : 'Read aloud'}
-    >
-      {isSpeaking ? <VolumeX className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
-    </button>
+    <Tooltip title={isSpeaking ? 'Stop speaking' : 'Read aloud'}>
+      <span>
+        <IconButton
+          size="small"
+          onClick={() => speak(text)}
+          disabled={disabled}
+          sx={{
+            color: isSpeaking ? 'primary.main' : 'text.secondary',
+            bgcolor: isSpeaking ? 'action.selected' : 'transparent',
+          }}
+        >
+          {isSpeaking ? <VolumeOff fontSize="small" /> : <VolumeUp fontSize="small" />}
+        </IconButton>
+      </span>
+    </Tooltip>
   );
 };
 
-export default VoiceInput;
+export default useVoice;

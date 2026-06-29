@@ -92,12 +92,19 @@ class OCRService:
                 print("[INIT] OCR service configured: Azure AI Vision")
                 
         elif self.ocr_provider == "ocr_space":
-            self.ocr_space_api_key = settings.OCR_SPACE_API_KEY or "K87899142"  # Free tier key
-            print("[INIT] OCR service configured: OCR.Space (Free Tier)")
+            self.ocr_space_api_key = settings.OCR_SPACE_API_KEY
+            if not self.ocr_space_api_key:
+                self.ocr_enabled = False
+                print("[WARNING] OCR.Space API key not configured; OCR.Space will be disabled")
+            else:
+                print("[INIT] OCR service configured: OCR.Space")
         else:
             print(f"[WARNING] Unknown OCR provider: {self.ocr_provider}, defaulting to OCR.Space")
             self.ocr_provider = "ocr_space"
-            self.ocr_space_api_key = settings.OCR_SPACE_API_KEY or "K87899142"
+            self.ocr_space_api_key = settings.OCR_SPACE_API_KEY
+            if not self.ocr_space_api_key:
+                self.ocr_enabled = False
+                print("[WARNING] OCR.Space API key not configured; OCR.Space will be disabled")
 
         if self.ocr_enabled:
             print(f"[INIT] OCR service ready (PyMuPDF + {self.ocr_provider})")

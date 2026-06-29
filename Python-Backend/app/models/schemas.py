@@ -92,6 +92,10 @@ class QueryResponse(BaseModel):
     """
     answer: str = Field(..., description="AI-generated answer to the question")
     citations: List[Citation] = Field(default=[], description="Source citations from RAG retrieval")
+    documents: Optional[Dict] = Field(default={}, description="Extracted document insights")
+    insights: Optional[Dict] = Field(default={}, description="Analytical insights")
+    general: Optional[Dict] = Field(default={}, description="General metadata and entities")
+    visualizations: Optional[List[Dict]] = Field(default=[], description="Chart data array for Recharts")
     
     class Config:
         json_schema_extra = {
@@ -105,7 +109,11 @@ class QueryResponse(BaseModel):
                         "snippet": "Q4 revenue totaled $2.5 million...",
                         "namespace": "doc-abc123"
                     }
-                ]
+                ],
+                "documents": {},
+                "insights": {},
+                "general": {},
+                "visualizations": []
             }
         }
 

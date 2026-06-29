@@ -122,17 +122,46 @@ export const updateDocumentStatus = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Document not found");
   }
 
-  // Create system message to notify user
+  // Create or update the existing status message for this file
   const messageContent =
     status === "processed"
       ? `File processed successfully: ${document.fileName}`
       : `Failed to process file: ${document.fileName}. ${errorMessage || ""}`;
 
-  await Message.create({
+  const existingMessage = await Message.findOne({
     conversation: document.conversation,
     role: "system",
-    content: messageContent,
-  });
+    content: { $regex: new RegExp(document.fileName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") },
+  }).sort({ createdAt: -1 });
+
+  const systemMessage = existingMessage
+    ? await Message.findByIdAndUpdate(
+        existingMessage._id,
+        { content: messageContent },
+        { new: true }
+      )
+    : await Message.create({
+        conversation: document.conversation,
+        role: "system",
+        content: messageContent,
+      });
+
+  // Broadcast update to users viewing this conversation
+  const io = req.app.get("io");
+  if (io) {
+    io.to(document.conversation.toString()).emit("documentStatusUpdated", {
+      documentId: document._id.toString(),
+      status: document.status,
+      errorMessage: document.errorMessage,
+      fileName: document.fileName,
+      statusMessage: {
+        _id: systemMessage._id.toString(),
+        role: systemMessage.role,
+        content: systemMessage.content,
+        createdAt: systemMessage.createdAt,
+      },
+    });
+  }
 
   return res
     .status(200)

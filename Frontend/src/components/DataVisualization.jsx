@@ -1,66 +1,29 @@
 /**
  * DataVisualization Component
- * Parses analytical messages with multiple named financial series
- * (e.g. "Revenue Trend:", "Operating Margin:") and renders each
- * as a switchable tabbed chart.
- *
- * Fixes:
- *  - Handles ₹, $, €, £ currency symbols
- *  - Handles % percentage values
- *  - Handles "Million", "Billion", "Crore", "Lakh" word suffixes
- *  - Detects section headings → separate datasets (tabs)
- *  - Falls back to a flat list when no headings exist
+ * Renders structured JSON data into Recharts components automatically.
+ * Supports: Line, Bar, Area, Pie, Donut, Radar charts.
  */
 
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-  ArcElement,
-} from 'chart.js';
-import { Line, Bar, Pie } from 'react-chartjs-2';
-import { BarChart2, LineChart, PieChart, TrendingUp, ChevronLeft, ChevronRight } from 'lucide-react';
+  LineChart, Line, BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell,
+  RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
+  ComposedChart, ReferenceLine,
+  XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer
+} from 'recharts';
+import { Box, Typography, Paper } from '@mui/material';
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-  ArcElement
-);
+const COLOURS = ['#2563EB', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#F97316'];
 
-/* ─── Colour palette ──────────────────────────────────────────── */
-const COLOURS = [
-  { bg: 'rgba(37,  99, 235, 0.75)', border: 'rgba(37,  99, 235, 1)' },
-  { bg: 'rgba(16, 185, 129, 0.75)', border: 'rgba(16, 185, 129, 1)' },
-  { bg: 'rgba(245,158,  11, 0.75)', border: 'rgba(245,158,  11, 1)' },
-  { bg: 'rgba(139, 92, 246, 0.75)', border: 'rgba(139, 92, 246, 1)' },
-  { bg: 'rgba(236, 72, 153, 0.75)', border: 'rgba(236, 72, 153, 1)' },
-  { bg: 'rgba(249,115,  22, 0.75)', border: 'rgba(249,115,  22, 1)' },
-];
-
-/* ─── Number parser ───────────────────────────────────────────── */
+/* ─── Legacy Number & Heading parser for content fallback ──────── */
 const parseNum = (raw) => {
   if (!raw) return NaN;
-  // Strip currency symbols and whitespace
   let s = raw.replace(/[₹$€£¥,\s]/g, '');
   const hasPct = s.includes('%');
   s = s.replace('%', '');
-  // Named suffixes (case-insensitive)
   if (/billion$/i.test(s))  return parseFloat(s) * 1_000;
   if (/million$/i.test(s))  return parseFloat(s);
-  if (/crore$/i.test(s))    return parseFloat(s) * 10;     // crore → millions approx
+  if (/crore$/i.test(s))    return parseFloat(s) * 10;
   if (/lakh$/i.test(s))     return parseFloat(s) / 100;
   if (/[Bb]$/.test(s))      return parseFloat(s) * 1_000;
   if (/[Mm]$/.test(s))      return parseFloat(s);
@@ -69,54 +32,33 @@ const parseNum = (raw) => {
   return isNaN(n) ? NaN : n;
 };
 
-/* ─── Detect time-period labels ───────────────────────────────── */
-const isTimePeriod = (lbl) =>
-  /Q[1-4]|FY\s*\d{2,4}|H[12]|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|20\d{2}/i.test(lbl);
-
-/* ─── Section heading detector ────────────────────────────────── */
-//   "Revenue Trend:"  /  "**Operating Margin:**"  / "Key Metrics:"
 const isHeading = (line) => {
   const t = line.trim().replace(/\*+/g, '').trim();
-  return (
-    t.endsWith(':') &&
-    t.length < 80 &&
-    !t.match(/^[-•*\d]/)   // not a bullet or numbered list
-  );
+  return t.endsWith(':') && t.length < 80 && !t.match(/^[-•*\d]/);
 };
 
-/* ─── Main extractor ──────────────────────────────────────────── */
-/*
-  Bullet pattern matches lines like:
-    "- Q2 FY24: ₹596,920 Million"
-    "• Q3 FY24: 24.3%"
-    "* 2023: $1,200M"
-    "- Revenue: 5,000"
-*/
-const BULLET_RE =
-  /^[-•*]\s+(.+?):\s*([₹$€£¥]?\s*[\d,]+(?:\.\d+)?%?\s*(?:Billion|Million|Crore|Lakh|[BMKbmk])?)\s*$/i;
+const BULLET_RE = /^[-•*]\s+(.+?):\s*([₹$€£¥]?\s*[\d,]+(?:\.\d+)?%?\s*(?:Billion|Million|Crore|Lakh|[BMKbmk])?)\s*$/i;
 
-const extractData = (text) => {
+const extractLegacyData = (text) => {
+  if (!text) return null;
   const lines = text.split('\n');
-  const sections = [];   // [{ name, points: [{label, value}] }]
+  const sections = [];
   let current = null;
 
   for (const rawLine of lines) {
     const line = rawLine.trim();
     if (!line) continue;
-
     if (isHeading(line)) {
       const name = line.replace(/\*+/g, '').replace(/:$/, '').trim();
       current = { name, points: [] };
       sections.push(current);
       continue;
     }
-
     const m = line.match(BULLET_RE);
     if (m) {
       const label = m[1].trim();
       const val   = parseNum(m[2].trim());
       if (!isNaN(val) && label.length < 60) {
-        // If no section heading found yet, create a default one
         if (!current) {
           current = { name: 'Data', points: [] };
           sections.push(current);
@@ -126,297 +68,366 @@ const extractData = (text) => {
     }
   }
 
-  // Keep only sections with ≥ 2 data points
   const valid = sections.filter((s) => s.points.length >= 2);
   if (valid.length === 0) return null;
 
-  return valid.map((s, i) => ({
-    name:   s.name,
-    labels: s.points.map((p) => p.label),
-    values: s.points.map((p) => p.value),
-    isPct:  s.points.some((p) => /%./.test(String(p.raw))),   // percentage series
-    colour: COLOURS[i % COLOURS.length],
-    isTime: s.points.some((p) => isTimePeriod(p.label)),
+  return valid.map(s => ({
+    title: s.name,
+    type: 'bar', // Default fallback
+    xAxis: s.points.map(p => p.label),
+    series: [{
+      name: s.name,
+      data: s.points.map(p => p.value)
+    }]
   }));
 };
 
-/* ─── Trend line (linear regression) ─────────────────────────── */
-const calcTrend = (values) => {
-  const n = values.length;
-  const sx  = values.reduce((s, _, i) => s + i, 0);
-  const sy  = values.reduce((s, v)    => s + v, 0);
-  const sxy = values.reduce((s, v, i) => s + i * v, 0);
-  const sx2 = values.reduce((s, _, i) => s + i * i, 0);
-  const slope = (n * sxy - sx * sy) / (n * sx2 - sx * sx) || 0;
-  const b = (sy - slope * sx) / n;
-  return values.map((_, i) => +(slope * i + b).toFixed(2));
+const parseJsonFromText = (text) => {
+  if (!text || typeof text !== 'string') return null;
+
+  const normalizeJsonNumberCommas = (text) => {
+    let result = '';
+    let inString = false;
+    let escape = false;
+
+    for (let i = 0; i < text.length; i += 1) {
+      const char = text[i];
+      if (escape) {
+        result += char;
+        escape = false;
+        continue;
+      }
+      if (char === '\\') {
+        result += char;
+        escape = true;
+        continue;
+      }
+      if (char === '"') {
+        result += char;
+        inString = !inString;
+        continue;
+      }
+
+      if (!inString && char === ',') {
+        const prev = text[i - 1];
+        const next = text[i + 1];
+        if (prev && next && /\d/.test(prev) && /\d/.test(next)) {
+          continue;
+        }
+      }
+
+      result += char;
+    }
+
+    return result;
+  };
+
+  const tryParse = (value) => {
+    try {
+      return JSON.parse(value);
+    } catch {
+      const cleaned = normalizeJsonNumberCommas(value);
+      if (cleaned === value) return null;
+      try {
+        return JSON.parse(cleaned);
+      } catch {
+        return null;
+      }
+    }
+  };
+
+  const findMatchingSegment = (source, startIndex) => {
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+    const openChar = source[startIndex];
+    const closeChar = openChar === '[' ? ']' : openChar === '{' ? '}' : null;
+    if (!closeChar) return null;
+
+    for (let i = startIndex; i < source.length; i += 1) {
+      const char = source[i];
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (char === '\\') {
+        escape = true;
+        continue;
+      }
+      if (char === '"') {
+        inString = !inString;
+        continue;
+      }
+      if (inString) continue;
+      if (char === openChar) depth += 1;
+      else if (char === closeChar) {
+        depth -= 1;
+        if (depth === 0) {
+          return source.slice(startIndex, i + 1);
+        }
+      }
+    }
+    return null;
+  };
+
+  const cleaned = text.trim();
+  let parsed = tryParse(cleaned);
+  if (parsed) return parsed;
+
+  const fenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenceMatch) {
+    parsed = tryParse(fenceMatch[1].trim());
+    if (parsed) return parsed;
+  }
+
+  const firstBrace = cleaned.indexOf('{');
+  const firstBracket = cleaned.indexOf('[');
+  const startIndex = firstBrace !== -1 ? firstBrace : firstBracket;
+  if (startIndex !== -1) {
+    const segment = findMatchingSegment(cleaned, startIndex);
+    parsed = segment ? tryParse(segment) : null;
+    if (parsed) return parsed;
+  }
+
+  const fieldPattern = /["']?visualizations["']?\s*:\s*\[/gi;
+  let match;
+  while ((match = fieldPattern.exec(cleaned))) {
+    const arrayStart = cleaned.indexOf('[', match.index);
+    if (arrayStart === -1) continue;
+    const segment = findMatchingSegment(cleaned, arrayStart);
+    const arrayValue = segment ? tryParse(segment) : null;
+    if (Array.isArray(arrayValue)) {
+      return { visualizations: arrayValue };
+    }
+  }
+
+  return null;
 };
 
-/* ─── Component ───────────────────────────────────────────────── */
-const DataVisualization = ({ content }) => {
-  const datasets = useMemo(() => extractData(content), [content]);
+const normalizeVisualizationData = (rawData) => {
+  if (!rawData) return [];
+  if (Array.isArray(rawData)) return rawData;
+  if (typeof rawData === 'object') {
+    if (Array.isArray(rawData.visualizations)) return rawData.visualizations;
+    return [rawData];
+  }
+  return [];
+};
 
-  const [tab,       setTab]       = useState(0);
-  const [chartType, setChartType] = useState('auto');
-  const [showTrend, setShowTrend] = useState(false);
+const normalizeVisualization = (vis) => {
+  if (!vis || typeof vis !== 'object') return null;
 
-  // Reset tab / chart-type if datasets change
-  const ds = datasets?.[tab] ?? datasets?.[0];
+  const xAxis = Array.isArray(vis.xAxis) ? vis.xAxis : [];
+  const series = Array.isArray(vis.series) ? vis.series : [];
+  const points = Array.isArray(vis.data) ? vis.data : []; // allow alternative data field
 
-  if (!datasets || datasets.length === 0 || !ds) return null;
+  if (!series.length && points.length > 0) {
+    const firstRow = points[0] || {};
+    const keys = Object.keys(firstRow).filter((k) => k !== 'label' && k !== 'name' && k !== 'x');
+    const labels = points.map((row) => row.label ?? row.name ?? row.x ?? `Item ${points.indexOf(row) + 1}`);
+    const values = keys.map((key) => ({
+      name: key,
+      data: points.map((row) => {
+        const value = row[key];
+        return typeof value === 'string' ? parseNum(value) : value;
+      }),
+    }));
 
-  /* Auto chart type for current series */
-  const autoType = ds.isTime ? 'line' : (datasets.length === 1 && ds.labels.length <= 5 ? 'bar' : 'bar');
-  const activeType = chartType === 'auto' ? autoType : chartType;
+    return {
+      ...vis,
+      xAxis: xAxis.length ? xAxis : labels,
+      series: values,
+    };
+  }
 
-  /* Chart.js data */
-  const trendValues = showTrend && activeType !== 'pie' ? calcTrend(ds.values) : null;
+  const normalized = { ...vis, xAxis, series };
 
-  const chartData = {
-    labels: ds.labels,
-    datasets: [
-      {
-        label: ds.name,
-        data: ds.values,
-        backgroundColor: activeType === 'pie'
-          ? COLOURS.slice(0, ds.values.length).map((c) => c.bg)
-          : ds.colour.bg,
-        borderColor: activeType === 'pie'
-          ? COLOURS.slice(0, ds.values.length).map((c) => c.border)
-          : ds.colour.border,
-        borderWidth: 2,
-        tension: 0.35,
-        fill: false,
-        pointRadius: 4,
-        pointHoverRadius: 6,
-      },
-      ...(trendValues
-        ? [{
-            label: 'Trend',
-            data: trendValues,
-            type: 'line',
-            borderColor: 'rgba(239,68,68,0.85)',
-            borderWidth: 2,
-            borderDash: [6, 4],
-            fill: false,
-            pointRadius: 0,
-          }]
-        : []),
-    ],
-  };
+  if (!normalized.xAxis.length && normalized.series.length) {
+    const firstSeries = normalized.series[0];
+    if (Array.isArray(firstSeries.data)) {
+      normalized.xAxis = firstSeries.data.map((_, index) => `Item ${index + 1}`);
+    }
+  }
 
-  /* Chart.js options */
-  const options = {
-    responsive: true,
-    maintainAspectRatio: false,
-    interaction: { mode: 'index', intersect: false },
-    plugins: {
-      legend: {
-        display: showTrend || activeType === 'pie',
-        position: 'bottom',
-        labels: { padding: 10, font: { size: 11 }, usePointStyle: true },
-      },
-      tooltip: {
-        backgroundColor: 'rgba(13,22,41,0.95)',
-        padding: 12,
-        titleFont: { size: 12, weight: 'bold' },
-        bodyFont:  { size: 12 },
-        callbacks: {
-          label: (ctx) => {
-            const v = ctx.raw ?? ctx.parsed?.y ?? 0;
-            const formatted = new Intl.NumberFormat('en-IN').format(v);
-            return `  ${ctx.dataset.label}: ${formatted}`;
-          },
-        },
-      },
-    },
-    scales: activeType !== 'pie' ? {
-      y: {
-        beginAtZero: false,
-        ticks: {
-          font: { size: 11 },
-          callback: (v) =>
-            new Intl.NumberFormat('en-IN', {
-              notation: 'compact',
-              compactDisplay: 'short',
-              maximumFractionDigits: 1,
-            }).format(v),
-        },
-        grid: { color: 'rgba(148,163,184,0.1)' },
-      },
-      x: {
-        ticks: { font: { size: 10 }, maxRotation: 30 },
-        grid: { display: false },
-      },
-    } : undefined,
-  };
+  if (!normalized.series.length && Array.isArray(normalized.data)) {
+    normalized.series = normalized.data.map((row, index) => ({
+      name: row.name || `Series ${index + 1}`,
+      data: Array.isArray(row.data) ? row.data : [],
+    }));
+  }
 
-  /* Summary stats for current series */
-  const min = Math.min(...ds.values);
-  const max = Math.max(...ds.values);
-  const avg = ds.values.reduce((a, b) => a + b, 0) / ds.values.length;
-  const lastChange = ds.values.length >= 2
-    ? (((ds.values.at(-1) - ds.values.at(-2)) / Math.abs(ds.values.at(-2))) * 100).toFixed(1)
-    : null;
+  return normalized;
+};
 
-  const fmtCompact = (v) =>
-    new Intl.NumberFormat('en-IN', {
-      notation: 'compact',
-      compactDisplay: 'short',
-      maximumFractionDigits: 1,
-    }).format(v);
+const DataVisualization = ({ content, data }) => {
+  const visualizations = useMemo(() => {
+    if (data) {
+      if (Array.isArray(data) && data.length > 0) {
+        return data.map(normalizeVisualization).filter(Boolean);
+      }
+      if (typeof data === 'string') {
+        const parsedData = parseJsonFromText(data);
+        const extracted = parsedData ? normalizeVisualizationData(parsedData?.visualizations || parsedData) : null;
+        if (extracted && extracted.length > 0) {
+          return extracted.map(normalizeVisualization).filter(Boolean);
+        }
+      }
+      if (typeof data === 'object') {
+        const extracted = normalizeVisualizationData(data);
+        if (extracted.length > 0) {
+          return extracted.map(normalizeVisualization).filter(Boolean);
+        }
+      }
+    }
+
+    const parsed = parseJsonFromText(content);
+    const extracted = parsed ? normalizeVisualizationData(parsed?.visualizations || parsed) : null;
+    if (extracted && extracted.length > 0) {
+      return extracted.map(normalizeVisualization).filter(Boolean);
+    }
+
+    return extractLegacyData(content);
+  }, [content, data]);
+
+  if (!visualizations || visualizations.length === 0) return null;
 
   return (
-    <div
-      className="my-3 sm:my-4 rounded-xl border shadow-sm animate-fadeIn overflow-hidden"
-      style={{
-        backgroundColor: 'var(--color-bg-elevated)',
-        borderColor: 'var(--color-border)',
-      }}
-    >
-      {/* ── Tab bar (one tab per series) ── */}
-      {datasets.length > 1 && (
-        <div
-          className="flex overflow-x-auto scrollbar-hide border-b"
-          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-surface)' }}
-        >
-          {datasets.map((d, i) => (
-            <button
-              key={i}
-              onClick={() => { setTab(i); setChartType('auto'); setShowTrend(false); }}
-              className="flex-shrink-0 px-3 py-2 text-xs font-medium whitespace-nowrap transition-colors border-b-2"
-              style={
-                tab === i
-                  ? { borderBottomColor: '#2563eb', color: '#2563eb', backgroundColor: 'var(--color-bg-elevated)' }
-                  : { borderBottomColor: 'transparent', color: 'var(--color-text-secondary)' }
-              }
-            >
-              {d.name}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div className="p-3 sm:p-4">
-        {/* ── Header row ── */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <span
-              className="text-xs font-semibold truncate"
-              style={{ color: 'var(--color-text-primary)' }}
-            >
-              {datasets.length === 1 ? ds.name : `${tab + 1} / ${datasets.length}`}
-            </span>
-            {lastChange !== null && (
-              <span
-                className="flex-shrink-0 text-xs px-1.5 py-0.5 rounded-full font-semibold"
-                style={
-                  parseFloat(lastChange) >= 0
-                    ? { backgroundColor: 'var(--color-success-bg)', color: 'var(--color-success-text)' }
-                    : { backgroundColor: 'var(--color-error-bg)',   color: 'var(--color-error-text)' }
-                }
-              >
-                {parseFloat(lastChange) >= 0 ? '▲' : '▼'} {Math.abs(parseFloat(lastChange))}%
-              </span>
-            )}
-          </div>
-
-          {/* Chart type switcher */}
-          <div className="flex items-center gap-0.5 flex-shrink-0">
-            {[
-              { id: 'line', Icon: LineChart, title: 'Line' },
-              { id: 'bar',  Icon: BarChart2, title: 'Bar'  },
-              { id: 'pie',  Icon: PieChart,  title: 'Pie'  },
-            ].map(({ id, Icon, title }) => (
-              <button
-                key={id}
-                onClick={() => setChartType(chartType === id ? 'auto' : id)}
-                title={title}
-                className="p-1.5 rounded-lg transition-colors"
-                style={
-                  activeType === id
-                    ? { backgroundColor: 'rgba(37,99,235,0.15)', color: '#2563eb' }
-                    : { color: 'var(--color-text-muted)' }
-                }
-              >
-                <Icon className="w-3.5 h-3.5" />
-              </button>
-            ))}
-            {activeType !== 'pie' && (
-              <button
-                onClick={() => setShowTrend(!showTrend)}
-                title="Trend line"
-                className="p-1.5 rounded-lg transition-colors"
-                style={
-                  showTrend
-                    ? { backgroundColor: 'rgba(37,99,235,0.15)', color: '#2563eb' }
-                    : { color: 'var(--color-text-muted)' }
-                }
-              >
-                <TrendingUp className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* ── Chart canvas ── */}
-        <div className="relative" style={{ height: '200px' }}>
-          {activeType === 'line' && <Line  data={chartData} options={options} />}
-          {activeType === 'bar'  && <Bar   data={chartData} options={options} />}
-          {activeType === 'pie'  && <Pie   data={chartData} options={options} />}
-        </div>
-
-        {/* ── Summary stats ── */}
-        <div
-          className="mt-3 pt-3 border-t grid grid-cols-3 gap-2 text-center"
-          style={{ borderColor: 'var(--color-border)' }}
-        >
-          {[['Min', min], ['Avg', avg], ['Max', max]].map(([label, val]) => (
-            <div key={label}>
-              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{label}</p>
-              <p className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                {fmtCompact(val)}
-              </p>
-            </div>
-          ))}
-        </div>
-
-        {/* ── Prev / Next tab navigators (mobile-friendly) ── */}
-        {datasets.length > 1 && (
-          <div className="mt-3 flex items-center justify-between">
-            <button
-              onClick={() => setTab((t) => Math.max(0, t - 1))}
-              disabled={tab === 0}
-              className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-colors disabled:opacity-30"
-              style={{ color: 'var(--color-text-secondary)' }}
-            >
-              <ChevronLeft className="w-3 h-3" /> Prev
-            </button>
-            <div className="flex gap-1">
-              {datasets.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setTab(i)}
-                  className="w-1.5 h-1.5 rounded-full transition-colors"
-                  style={{
-                    backgroundColor: i === tab ? '#2563eb' : 'var(--color-border)',
-                  }}
-                />
-              ))}
-            </div>
-            <button
-              onClick={() => setTab((t) => Math.min(datasets.length - 1, t + 1))}
-              disabled={tab === datasets.length - 1}
-              className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-colors disabled:opacity-30"
-              style={{ color: 'var(--color-text-secondary)' }}
-            >
-              Next <ChevronRight className="w-3 h-3" />
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
+    <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 3, mt: 2 }}>
+      {visualizations.map((vis, idx) => (
+        <Paper key={idx} variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: 'background.paper', overflow: 'hidden' }}>
+          <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 2, color: 'text.primary' }}>
+            {vis.title || 'Data Visualization'}
+          </Typography>
+          <Box sx={{ width: '100%', height: 300 }}>
+            {renderChart(vis)}
+          </Box>
+        </Paper>
+      ))}
+    </Box>
   );
+};
+
+const renderChart = (vis) => {
+  const chartData = [];
+  const xAxisLabels = vis.xAxis || [];
+  
+  xAxisLabels.forEach((label, i) => {
+    const dataPoint = { name: label };
+    vis.series.forEach((s) => {
+      dataPoint[s.name] = s.data[i];
+    });
+    chartData.push(dataPoint);
+  });
+
+  const type = vis.type?.toLowerCase() || 'line';
+  const margin = { top: 10, right: 30, left: 0, bottom: 0 };
+  const tooltipStyle = { borderRadius: 8, border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: 'rgba(13,22,41,0.95)', color: '#fff' };
+  
+  const formatter = (val) => new Intl.NumberFormat('en-IN', { notation: 'compact' }).format(val);
+
+  switch (type) {
+    case 'bar':
+      return (
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={chartData} margin={margin}>
+            <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+            <XAxis dataKey="name" fontSize={12} tickMargin={10} />
+            <YAxis fontSize={12} tickFormatter={formatter} />
+            <RechartsTooltip contentStyle={tooltipStyle} />
+            <Legend wrapperStyle={{ paddingTop: 20 }} />
+            {vis.series.map((s, i) => (
+              <Bar key={s.name} dataKey={s.name} fill={COLOURS[i % COLOURS.length]} radius={[4, 4, 0, 0]} />
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      );
+    case 'area':
+      return (
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={chartData} margin={margin}>
+            <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+            <XAxis dataKey="name" fontSize={12} tickMargin={10} />
+            <YAxis fontSize={12} tickFormatter={formatter} />
+            <RechartsTooltip contentStyle={tooltipStyle} />
+            <Legend wrapperStyle={{ paddingTop: 20 }} />
+            {vis.series.map((s, i) => (
+              <Area key={s.name} type="monotone" dataKey={s.name} fill={COLOURS[i % COLOURS.length]} stroke={COLOURS[i % COLOURS.length]} fillOpacity={0.3} />
+            ))}
+          </AreaChart>
+        </ResponsiveContainer>
+      );
+    case 'pie':
+    case 'donut':
+      const pieData = xAxisLabels.map((label, i) => ({
+        name: label,
+        value: vis.series[0]?.data[i] || 0
+      }));
+      const innerRadius = type === 'donut' ? 60 : 0;
+      return (
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <RechartsTooltip contentStyle={tooltipStyle} />
+            <Legend wrapperStyle={{ paddingTop: 20 }} />
+            <Pie data={pieData} cx="50%" cy="50%" innerRadius={innerRadius} outerRadius={100} paddingAngle={2} dataKey="value">
+              {pieData.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={COLOURS[index % COLOURS.length]} />
+              ))}
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+      );
+    case 'radar':
+      return (
+        <ResponsiveContainer width="100%" height="100%">
+          <RadarChart cx="50%" cy="50%" outerRadius="80%" data={chartData}>
+            <PolarGrid opacity={0.3} />
+            <PolarAngleAxis dataKey="name" fontSize={12} />
+            <PolarRadiusAxis angle={30} domain={['auto', 'auto']} fontSize={10} />
+            <RechartsTooltip contentStyle={tooltipStyle} />
+            <Legend wrapperStyle={{ paddingTop: 20 }} />
+            {vis.series.map((s, i) => (
+              <Radar key={s.name} name={s.name} dataKey={s.name} stroke={COLOURS[i % COLOURS.length]} fill={COLOURS[i % COLOURS.length]} fillOpacity={0.4} />
+            ))}
+          </RadarChart>
+        </ResponsiveContainer>
+      );
+    case 'composed':
+      return (
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={chartData} margin={margin}>
+            <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+            <XAxis dataKey="name" fontSize={12} tickMargin={10} />
+            <YAxis fontSize={12} tickFormatter={formatter} />
+            <ReferenceLine y={0} stroke="#8884d8" strokeDasharray="3 3" />
+            <RechartsTooltip contentStyle={tooltipStyle} />
+            <Legend wrapperStyle={{ paddingTop: 20 }} />
+            {vis.series.map((s, i) => (
+              i === 0 ? (
+                <Bar key={s.name} dataKey={s.name} fill={COLOURS[i % COLOURS.length]} radius={[4, 4, 0, 0]} />
+              ) : (
+                <Line key={s.name} type="monotone" dataKey={s.name} stroke={COLOURS[i % COLOURS.length]} strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+              )
+            ))}
+          </ComposedChart>
+        </ResponsiveContainer>
+      );
+    case 'line':
+    default:
+      return (
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={chartData} margin={margin}>
+            <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+            <XAxis dataKey="name" fontSize={12} tickMargin={10} />
+            <YAxis fontSize={12} tickFormatter={formatter} />
+            <RechartsTooltip contentStyle={tooltipStyle} />
+            <Legend wrapperStyle={{ paddingTop: 20 }} />
+            {vis.series.map((s, i) => (
+              <Line key={s.name} type="monotone" dataKey={s.name} stroke={COLOURS[i % COLOURS.length]} strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      );
+  }
 };
 
 export default DataVisualization;

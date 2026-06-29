@@ -1,18 +1,27 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   server: {
     port: 5173,
     open: true,
     proxy: {
       // Proxy API requests during development
       '/api': {
-        target: 'http://localhost:8000',
+        target: process.env.BACKEND_URL,
         changeOrigin: true,
       },
+    },
+    watch: {
+      // Exclude node_modules from file watching to prevent EMFILE errors
+      ignored: ['**/node_modules/**', '**/dist/**'],
+    },
+    fs: {
+      // Increase file descriptor limit
+      strict: false,
     },
   },
   build: {
@@ -54,10 +63,7 @@ export default defineConfig({
           )) {
             return 'react-vendor';
           }
-          // Icon libraries
-          if (id.includes('lucide-react')) {
-            return 'ui-vendor';
-          }
+          // Icon libraries (MUI icons are bundled with mui-vendor)
         },
       },
     },

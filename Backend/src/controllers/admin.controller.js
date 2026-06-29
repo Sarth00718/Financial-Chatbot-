@@ -438,7 +438,7 @@ export const getSystemLogs = asyncHandler(async (req, res) => {
  */
 export const getSystemHealth = asyncHandler(async (req, res) => {
   // Check database connection
-  const dbStatus = ion.readyState === 1 ? "connected" : "disconnected";
+  const dbStatus = mongoose.connection.readyState === 1 ? "connected" : "disconnected";
 
   // Get memory usage
   const memoryUsage = process.memoryUsage();

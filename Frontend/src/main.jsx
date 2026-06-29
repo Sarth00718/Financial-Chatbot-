@@ -15,26 +15,26 @@ import { Toaster } from 'react-hot-toast';
 import './index.css';
 
 // Context providers
-import { AuthProvider }  from './contexts/AuthContext';
+import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 
 // Route components
 import ProtectedRoute from './components/ProtectedRoute';
 
 // Pages
-import LoginPage         from './pages/LoginPage';
-import RegisterPage      from './pages/RegisterPage';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
-import ChatPage          from './pages/ChatPage';
-import AdminDashboard    from './pages/AdminDashboard';
-import UserDashboard     from './pages/UserDashboard';
+import ChatPage from './pages/ChatPage';
+import AdminDashboard from './pages/AdminDashboard';
+import UserDashboard from './pages/UserDashboard';
 import ExecutiveDashboard from './pages/ExecutiveDashboard';
-import BookmarksPage     from './pages/BookmarksPage';
-import WatchlistPage     from './pages/WatchlistPage';
-import MuiThemeWrapper   from './theme/MuiThemeWrapper';
-import ErrorBoundary     from './components/ErrorBoundary';
-import AppLayout          from './components/layout/AppLayout';
+import BookmarksPage from './pages/BookmarksPage';
+import WatchlistPage from './pages/WatchlistPage';
+import MuiThemeWrapper from './theme/MuiThemeWrapper';
+import ErrorBoundary from './components/ErrorBoundary';
+import AppLayout from './components/layout/AppLayout';
 
 /**
  * Theme-aware Toaster that reads from ThemeContext.
@@ -85,8 +85,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <ErrorBoundary>
           <Routes>
             {/* Public routes */}
-            <Route path="/login"          element={<LoginPage />} />
-            <Route path="/register"       element={<RegisterPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
 

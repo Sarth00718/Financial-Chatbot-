@@ -1,12 +1,16 @@
 /**
  * Reset Password Page
- * Reset password using token from email — premium themed, light/dark aware.
+ * MUI + React Hook Form.
  */
 
 import { useState } from 'react';
+import { useForm } from 'react-hook-form';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { Box, Stack, Typography, TextField, InputAdornment, IconButton, Paper, Container, Button } from '@mui/material';
+import { Lock, Visibility, VisibilityOff, CheckCircleOutline, WarningAmberOutlined, Insights } from '@mui/icons-material';
+import { LoadingButton } from '@mui/lab';
+import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
-import { BarChart3, Lock, Eye, EyeOff, CheckCircle, AlertTriangle } from 'lucide-react';
 import ThemeToggle from '../components/ThemeToggle';
 
 const ResetPasswordPage = () => {
@@ -15,181 +19,116 @@ const ResetPasswordPage = () => {
   const { resetPassword } = useAuth();
   const token = searchParams.get('token');
 
-  const [formData, setFormData] = useState({ password: '', confirmPassword: '' });
-  const [showPwd, setShowPwd]   = useState(false);
+  const [showPwd, setShowPwd] = useState(false);
   const [showCPwd, setShowCPwd] = useState(false);
-  const [loading, setLoading]   = useState(false);
-  const [success, setSuccess]   = useState(false);
+  const [success, setSuccess] = useState(false);
+  const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm({
+    defaultValues: { password: '', confirmPassword: '' },
+  });
 
-  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    const result = await resetPassword({ token, ...formData });
+  const onSubmit = async (data) => {
+    const result = await resetPassword({ token, ...data });
     if (result.success) {
       setSuccess(true);
       setTimeout(() => navigate('/login'), 3000);
     }
-    setLoading(false);
   };
 
-  /* ---- No token ---- */
+  const Shell = ({ children }) => (
+    <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', bgcolor: 'background.default', position: 'relative' }}>
+      <Box sx={{ position: 'absolute', top: 16, right: 16, zIndex: 2 }}><ThemeToggle /></Box>
+      <Container maxWidth="xs">
+        <Box component={motion.div} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>{children}</Box>
+      </Container>
+    </Box>
+  );
+
   if (!token) {
     return (
-      <div className="page-auth">
-        <div className="absolute top-4 right-4 z-20"><ThemeToggle /></div>
-        <div className="relative z-10 w-full max-w-md animate-fadeInUp">
-          <div className="text-center mb-8">
-            <div
-              className="w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center shadow-xl"
-              style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}
-            >
-              <AlertTriangle className="w-8 h-8 text-white" />
-            </div>
-            <h1 className="text-3xl font-bold mb-1.5" style={{ color: 'var(--color-text-primary)' }}>
-              Invalid Link
-            </h1>
-            <p style={{ color: 'var(--color-text-secondary)' }}>
-              This reset link is invalid or has expired.
-            </p>
-          </div>
-          <div className="auth-card text-center">
-            <Link to="/forgot-password" className="btn-primary inline-flex">
-              Request a New Link
-            </Link>
-          </div>
-        </div>
-      </div>
+      <Shell>
+        <Box sx={{ textAlign: 'center', mb: 4 }}>
+          <Box sx={{ width: 64, height: 64, mx: 'auto', mb: 2, borderRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #F59E0B, #D97706)' }}>
+            <WarningAmberOutlined sx={{ color: '#fff', fontSize: 32 }} />
+          </Box>
+          <Typography variant="h5" fontWeight={800} sx={{ mb: 1 }}>Invalid Link</Typography>
+          <Typography variant="body2" color="text.secondary">This reset link is invalid or has expired.</Typography>
+        </Box>
+        <Paper variant="outlined" sx={{ p: 4, borderRadius: 4, textAlign: 'center' }}>
+          <Button component={Link} to="/forgot-password" variant="contained" size="large" fullWidth>
+            Request a New Link
+          </Button>
+        </Paper>
+      </Shell>
     );
   }
 
-  /* ---- Success ---- */
   if (success) {
     return (
-      <div className="page-auth">
-        <div className="absolute top-4 right-4 z-20"><ThemeToggle /></div>
-        <div className="relative z-10 w-full max-w-md animate-fadeInUp">
-          <div className="text-center mb-8">
-            <div
-              className="w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center shadow-xl"
-              style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)' }}
-            >
-              <CheckCircle className="w-8 h-8 text-white" />
-            </div>
-            <h1 className="text-3xl font-bold mb-1.5" style={{ color: 'var(--color-text-primary)' }}>
-              Password Reset!
-            </h1>
-            <p style={{ color: 'var(--color-text-secondary)' }}>
-              Your password has been successfully reset.
-            </p>
-          </div>
-          <div className="auth-card text-center space-y-4">
-            <p style={{ color: 'var(--color-text-secondary)' }}>Redirecting to login page…</p>
-            <Link to="/login" className="btn-primary inline-flex">Go to Login</Link>
-          </div>
-        </div>
-      </div>
+      <Shell>
+        <Box sx={{ textAlign: 'center', mb: 4 }}>
+          <Box sx={{ width: 64, height: 64, mx: 'auto', mb: 2, borderRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #22C55E, #16A34A)' }}>
+            <CheckCircleOutline sx={{ color: '#fff', fontSize: 32 }} />
+          </Box>
+          <Typography variant="h5" fontWeight={800} sx={{ mb: 1 }}>Password Reset!</Typography>
+          <Typography variant="body2" color="text.secondary">Your password has been successfully reset.</Typography>
+        </Box>
+        <Paper variant="outlined" sx={{ p: 4, borderRadius: 4, textAlign: 'center' }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Redirecting to login page…</Typography>
+          <Button component={Link} to="/login" variant="contained" size="large" fullWidth>Go to Login</Button>
+        </Paper>
+      </Shell>
     );
   }
 
-  /* ---- Form ---- */
   return (
-    <div className="page-auth">
-      <div className="absolute top-4 right-4 z-20"><ThemeToggle /></div>
+    <Shell>
+      <Box sx={{ textAlign: 'center', mb: 4 }}>
+        <Box sx={{ width: 64, height: 64, mx: 'auto', mb: 2, borderRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #2563EB, #7C3AED)' }}>
+          <Insights sx={{ color: '#fff', fontSize: 32 }} />
+        </Box>
+        <Typography variant="h5" fontWeight={800} sx={{ mb: 1 }}>Reset Password</Typography>
+        <Typography variant="body2" color="text.secondary">Enter your new password below</Typography>
+      </Box>
 
-      <div
-        className="absolute bottom-[-10%] right-[-6%] w-80 h-80 rounded-full animate-blob opacity-30 pointer-events-none"
-        style={{ background: 'radial-gradient(circle, rgba(37,99,235,0.3) 0%, transparent 70%)' }}
-      />
-
-      <div className="relative z-10 w-full max-w-md animate-fadeInUp">
-        <div className="text-center mb-8">
-          <div className="brand-icon mx-auto mb-4">
-            <BarChart3 className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold mb-1.5" style={{ color: 'var(--color-text-primary)' }}>
-            Reset Password
-          </h1>
-          <p style={{ color: 'var(--color-text-secondary)' }}>Enter your new password below</p>
-        </div>
-
-        <div className="auth-card">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* New Password */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-semibold mb-1.5" style={{ color: 'var(--color-text-secondary)' }}>
-                New Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
-                <input
-                  id="password"
-                  name="password"
-                  type={showPwd ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  required
-                  minLength={6}
-                  className="input-field pl-10 pr-11"
-                  placeholder="••••••••"
-                />
-                <button type="button" onClick={() => setShowPwd(!showPwd)} className="absolute right-3 top-1/2 -translate-y-1/2 icon-btn p-1" aria-label="Toggle visibility">
-                  {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-              <p className="mt-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                At least 6 characters with uppercase, lowercase &amp; number
-              </p>
-            </div>
-
-            {/* Confirm Password */}
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-semibold mb-1.5" style={{ color: 'var(--color-text-secondary)' }}>
-                Confirm New Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
-                <input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type={showCPwd ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  required
-                  className="input-field pl-10 pr-11"
-                  placeholder="••••••••"
-                />
-                <button type="button" onClick={() => setShowCPwd(!showCPwd)} className="absolute right-3 top-1/2 -translate-y-1/2 icon-btn p-1" aria-label="Toggle visibility">
-                  {showCPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            <button type="submit" disabled={loading} className="btn-primary w-full py-3 text-base">
-              {loading ? (
-                <span className="flex items-center gap-2">
-                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Resetting…
-                </span>
-              ) : 'Reset Password'}
-            </button>
-          </form>
-
-          <div className="mt-6 text-center">
-            <Link to="/login" className="text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors">
-              ← Back to login
-            </Link>
-          </div>
-        </div>
-
-        <p className="text-center text-xs mt-6" style={{ color: 'var(--color-text-muted)' }}>
-          © {new Date().getFullYear()} FinChatBot. All rights reserved.
-        </p>
-      </div>
-    </div>
+      <Paper variant="outlined" sx={{ p: 4, borderRadius: 4 }}>
+        <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
+          <Stack spacing={2.5}>
+            <TextField
+              label="New Password" type={showPwd ? 'text' : 'password'} fullWidth autoComplete="new-password" placeholder="••••••••"
+              error={!!errors.password} helperText={errors.password?.message || 'At least 6 characters with uppercase, lowercase & number'}
+              InputProps={{
+                startAdornment: <InputAdornment position="start"><Lock fontSize="small" /></InputAdornment>,
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton size="small" onClick={() => setShowPwd((s) => !s)}>{showPwd ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}</IconButton>
+                  </InputAdornment>
+                ),
+              }}
+              {...register('password', { required: 'Password is required', minLength: { value: 6, message: 'At least 6 characters' } })}
+            />
+            <TextField
+              label="Confirm New Password" type={showCPwd ? 'text' : 'password'} fullWidth autoComplete="new-password" placeholder="••••••••"
+              error={!!errors.confirmPassword} helperText={errors.confirmPassword?.message}
+              InputProps={{
+                startAdornment: <InputAdornment position="start"><Lock fontSize="small" /></InputAdornment>,
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton size="small" onClick={() => setShowCPwd((s) => !s)}>{showCPwd ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}</IconButton>
+                  </InputAdornment>
+                ),
+              }}
+              {...register('confirmPassword', { required: 'Please confirm your password', validate: (v) => v === watch('password') || 'Passwords do not match' })}
+            />
+            <LoadingButton type="submit" variant="contained" size="large" fullWidth loading={isSubmitting}>
+              Reset Password
+            </LoadingButton>
+          </Stack>
+        </Box>
+        <Typography component={Link} to="/login" variant="body2" align="center" display="block" sx={{ mt: 3, color: 'primary.main', textDecoration: 'none', fontWeight: 600 }}>
+          ← Back to login
+        </Typography>
+      </Paper>
+    </Shell>
   );
 };
 

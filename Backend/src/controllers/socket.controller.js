@@ -25,17 +25,7 @@ export const handleSocketChatMessage = async (socket, data) => {
       return;
     }
 
-    // Save user's message
-    const userMessage = await Message.create({
-      conversation: conversationId,
-      role: "user",
-      content: content,
-    });
-
-    // Emit user message to all clients in the conversation room
-    socket.nsp.to(conversationId).emit("newMessage", userMessage);
-
-    // Verify conversation exists
+    // Verify conversation exists before saving the message
     const conversation = await Conversation.findById(conversationId).populate(
       "documents"
     );
@@ -46,6 +36,17 @@ export const handleSocketChatMessage = async (socket, data) => {
       });
       return;
     }
+
+    // Save user's message with the feature mode used
+    const userMessage = await Message.create({
+      conversation: conversationId,
+      role: "user",
+      content: content,
+      featureUsed: conversation.featureUsed,
+    });
+
+    // Emit user message to all clients in the conversation room
+    socket.nsp.to(conversationId).emit("newMessage", userMessage);
 
     // Get recent chat history
     const chatHistory = await Message.find({ conversation: conversationId })
@@ -75,13 +76,22 @@ export const handleSocketChatMessage = async (socket, data) => {
 
       const aiContent = response.data.answer;
       const aiCitations = response.data.citations || [];
+      const aiDocuments = response.data.documents || {};
+      const aiInsights = response.data.insights || {};
+      const aiGeneral = response.data.general || {};
+      const aiVisualizations = response.data.visualizations || [];
 
       // Save AI's response
       const assistantMessage = await Message.create({
         conversation: conversationId,
         role: "assistant",
         content: aiContent,
+        featureUsed: conversation.featureUsed,
         citations: aiCitations,
+        documentsData: aiDocuments,
+        insightsData: aiInsights,
+        generalData: aiGeneral,
+        visualizationsData: aiVisualizations,
       });
 
       // Emit AI response to all clients in the conversation room

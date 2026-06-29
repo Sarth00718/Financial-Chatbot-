@@ -5,8 +5,19 @@
 
 import axios from 'axios';
 
-// Get API URL from environment variable
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+const DEFAULT_API_BASE = '/api/v1';
+
+const normalizeUrl = (url) => {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
+};
+
+const API_URL = import.meta.env.VITE_API_URL || DEFAULT_API_BASE;
+const backendOrigin = normalizeUrl(import.meta.env.VITE_API_URL) || '';
+const googleAuthUrl = backendOrigin ? `${backendOrigin}/api/v1/auth/google` : '/api/v1/auth/google';
 
 // Create axios instance with default config
 const api = axios.create({
@@ -93,6 +104,9 @@ export const authAPI = {
 // ============================================
 // CONVERSATION API
 // ============================================
+
+export const BACKEND_ORIGIN = backendOrigin;
+export const GOOGLE_AUTH_URL = googleAuthUrl;
 
 export const conversationAPI = {
   // Get all conversations

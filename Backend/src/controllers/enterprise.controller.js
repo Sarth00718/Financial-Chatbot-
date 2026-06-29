@@ -13,7 +13,13 @@ import { Document } from "../models/Document.model.js";
 import { Watchlist } from "../models/Watchlist.model.js";
 import { Bookmark } from "../models/Bookmark.model.js";
 
-const getPythonUrl = () => process.env.PYTHON_SERVICE_URL || "http://localhost:5000";
+const getPythonUrl = () => {
+  const url = process.env.PYTHON_SERVICE_URL;
+  if (!url) {
+    throw new ApiError(500, 'Missing PYTHON_SERVICE_URL configuration');
+  }
+  return url;
+};
 
 const VALID_ANALYSIS_TYPES = [
   "executive_summary",

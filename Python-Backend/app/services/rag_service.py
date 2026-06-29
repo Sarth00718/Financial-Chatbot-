@@ -194,15 +194,84 @@ class RAGService:
         relevant_docs: List[Document]
     ) -> Dict:
         """Execute a RAG chain and return answer with citations."""
+        json_instruction = """
+\n\nCRITICAL INSTRUCTION: You MUST format your entire response as a single valid JSON object. Do not wrap the JSON in Markdown block quotes, just return the raw JSON object.
+
+The JSON object must have exactly this structure:
+{{
+  "answer": "Your detailed answer in markdown format. For charts, provide explanations here, but put the chart data in the visualization field.",
+  "documents": {{
+    "referenced_documents": [],
+    "pages_used": [],
+    "matching_text": [],
+    "confidence_score": "High/Medium/Low"
+  }},
+  "insights": {{
+    "executive_summary": "Short summary",
+    "key_findings": []
+  }},
+  "general": {{
+    "entities": [],
+    "dates": [],
+    "companies": [],
+    "currency": [],
+    "keywords": []
+  }},
+  "visualizations": [
+    {{
+      "title": "Chart Title",
+      "type": "line|bar|pie|area|radar|composed",
+      "xAxis": ["label1", "label2"],
+      "series": [
+        {{
+          "name": "Series Name",
+          "data": [10, 20]
+        }}
+      ]
+    }}
+  ]
+}}
+
+If you do not have data for a specific field, leave it empty or null. But always return this exact JSON structure. Do NOT include markdown code blocks (```json) around your response, just the raw JSON text. Do NOT generate Python scripts, Plotly, or Matplotlib code. Only generate this JSON format.
+"""
+        # Append instruction if not already present
+        if "CRITICAL INSTRUCTION: You MUST format your entire response as a single valid JSON object" not in prompt_template:
+            prompt_template += json_instruction
+
         prompt = PromptTemplate.from_template(prompt_template)
         chain = prompt | self.llm | StrOutputParser()
 
         print("[LLM] Generating answer...")
-        answer = chain.invoke(variables)
+        raw_answer = chain.invoke(variables)
         citations = self._build_citations(relevant_docs)
 
         print("[OK] Answer generated")
-        return {"answer": answer, "citations": citations}
+        
+        # Try to parse the answer as JSON
+        import json
+        try:
+            # Strip markdown block formatting if the LLM accidentally added it
+            cleaned = raw_answer.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+            parsed = json.loads(cleaned)
+            
+            return {
+                "answer": parsed.get("answer", raw_answer),
+                "citations": citations,
+                "documents": parsed.get("documents", {}),
+                "insights": parsed.get("insights", {}),
+                "general": parsed.get("general", {}),
+                "visualizations": parsed.get("visualizations", [])
+            }
+        except Exception:
+            print("[WARNING] LLM output was not valid JSON, falling back to raw string")
+            return {
+                "answer": raw_answer,
+                "citations": citations,
+                "documents": {},
+                "insights": {},
+                "general": {},
+                "visualizations": []
+            }
     
     async def smart_chat(
         self,
@@ -338,8 +407,29 @@ class RAGService:
         prompt = PromptTemplate.from_template(GENERAL_CONVERSATION_PROMPT)
         chain = prompt | self.llm | StrOutputParser()
         
-        answer = chain.invoke({"chat_history": history, "question": question})
-        return {"answer": answer, "citations": []}
+        raw_answer = chain.invoke({"chat_history": history, "question": question})
+        
+        import json
+        try:
+            cleaned = raw_answer.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+            parsed = json.loads(cleaned)
+            return {
+                "answer": parsed.get("answer", raw_answer),
+                "citations": [],
+                "documents": parsed.get("documents", {}),
+                "insights": parsed.get("insights", {}),
+                "general": parsed.get("general", {}),
+                "visualizations": parsed.get("visualizations", [])
+            }
+        except Exception:
+            return {
+                "answer": raw_answer, 
+                "citations": [],
+                "documents": {},
+                "insights": {},
+                "general": {},
+                "visualizations": []
+            }
     
     async def run_enterprise_analysis(
         self,
@@ -443,11 +533,6 @@ class RAGService:
         Returns:
             Dict with answer and citations
         """
-        # If documents are uploaded, default/upgrade mode to Smart_Chat instead of skipping retrieval
-        if namespaces and feature_mode == "General_Conversation":
-            print("[INFO] Documents exist, upgrading General_Conversation to Smart_Chat")
-            feature_mode = "Smart_Chat"
-
         print(f"\n{'='*60}")
         print(f"[QUERY] New Request")
         print(f"  Mode: {feature_mode}")

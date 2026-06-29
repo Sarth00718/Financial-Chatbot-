@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "gen-lang-client-0488583600",
+  "private_key_id": "86739b30a4e684fe0181805a3035c2d9b9fe3840",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDUocjN4EQHhWbe\nYzQKmlxQ+tJorRo2W25XBTOKFZUC4IdDM5/j0Z/5zFOCP2lU0VPSaS9RgDr5vwQi\nHmWfqL3QD5VE1Pd+vLLFox709EuuJHmtcunYRXxME26xXBDArmEt4vI49g9bzxbM\n5mvkpvZCwu9s/+JO9FezKHuRzOVfKi4TU0b6+xVeDQloqLn7xugyWdISgXNeEb6w\nnyvdyYZEg9tE6EUFQ4SlyV5GARhsT7whRD3/agORwuTNELzLgCFcekiyE4SF1q5Q\nl+eq/CdVmq0pDuAaesNGckhxz7g44vQWABXdbGN0veIjq8b7tWB8VOJJ+pLJUTMO\nHzDJ/gLLAgMBAAECggEABGrtorgLDHUtPuey2QsaTVppmwrP4DeSaz9slWzp67Oo\n2f74FZ54Y1ouXG3mSZ0eMzandxP3OwvlNOwKpFzUaoXT6n3MPCIFLmMCm89AqNSf\nusakewTEVp8uvC5FVGOAbwqSUPttF+4Nen7l9RMHoOQ9X4zC//tGoErj3CDmZKLl\nuf0EVCOzoSauyPEQFLGfksGltjIJ9FRgBwt+QkWg9/EogJEXjHIRaaA5tGUYjFjR\nRFEFlK4B4nDCf6uD9VtyTE86uCRk7yzAJcCwJvelEces0uO3BONdaGyP7GauDBWN\niSQCjTUNnPVk/DUCNTrBFtBByOIbhTMmKnx6yF2u0QKBgQD00IY6tNGDeTNHMUX6\nclmDblv3mYXBeTW22HXAnrPdMt7C6SS+hMM1zWeHaB7e4j2OktRBHgmPp3CkbLrG\n6KiwiFRKvadotjYRCvGntzm+gOacVd3/UI5G4Rj+ScTcLUj3lBqsPCFwSGG2Wdkh\n0gl1QZGRxP5Bh+qgZ1AT62f/2wKBgQDeWNYTW5m97/02B5NbDE7wBZ5mt74iZwcP\nZpvXMFtw5F9qZ488eF0HssD0DHml8ySfokqnwaC7BnRLDdOyJFcNGkLwxrluGxRm\nnK2MRuYtXCQvbXKtxAicezSlPAkwBt83EXoYK1jwOb0k1W21dvOrWEH0MHvZjxyt\nhbu1FZCz0QKBgQDiZvW71PztWWjSrf7JXnbp1WW31YKdKjtCnWxIdnxgVGsuVe5l\nQuJFH3BfCSuDdDb5Y1Bn6B9veqnxZZxV11Qp7eoGNN5dOCVIHZbeQ9RjGVIrwj1L\noHPzmLhEcnRcKoUQcSc5oWJLNKUovm7PmC6nAbxd0pBQiiGxtdmYklvbgQKBgQDI\n/k9OonBhNY+VBtYa6Q52hO3C9vhmivHj5yKbLPiMHbVvL3xY8olOSzWHp7tT227Q\n61lHOo68YkJAEpi6oYUbsBCxLUM0mEAh3iI3+2NZv8BqKysOj3YlVm6pq5K2mo+v\nbRoMvSqhxeAIavLIpmXxD1BXmHhsm6UV6x1avcrX8QKBgDBob/ookDBeJIzBRTJJ\nmyN+Bj7OCjHRvLfrWimOzubg5X8Grs1lTGx8vH7U0VK+CzJyOY1csrP0f0hz3oRS\nNMVL40iVfADX7GiEQhdz29aeTPj7eFEoKPG/XvE2DzfgPswSDEVMO2CHiZQSkCtK\njPq+8xGVg0lBMMsd2sTRmt6n\n-----END PRIVATE KEY-----\n",
+  "client_email": "financial-chatbot@gen-lang-client-0488583600.iam.gserviceaccount.com",
+  "client_id": "114566296896336055638",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/financial-chatbot%40gen-lang-client-0488583600.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

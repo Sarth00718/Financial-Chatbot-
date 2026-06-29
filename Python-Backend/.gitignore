@@ -34,6 +34,7 @@ vector_store/
 # Uploaded files
 uploads/
 temp_files/
+vision.json
 
 # IDE
 .vscode/

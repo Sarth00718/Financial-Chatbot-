@@ -15,12 +15,11 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str
     
     # Optional: Your site URL and app name (not needed for Groq)
-    OPENROUTER_SITE_URL: str = "http://localhost:5173"
+    OPENROUTER_SITE_URL: str = ""
     OPENROUTER_APP_NAME: str = "FinChatBot"
-    
+
     # Node.js Backend URL (for webhook callbacks)
-    NODE_WEBHOOK_URL: str = "http://localhost:8000"
-    
+    NODE_WEBHOOK_URL: str = ""
     # Server Configuration
     PORT: int = 5000
     
@@ -43,8 +42,8 @@ class Settings(BaseSettings):
     # Choose OCR provider: "ocr_space", "google_vision", or "azure_vision"
     OCR_PROVIDER: str = "ocr_space"  # Default to free OCR.Space
     
-    # OCR.Space Configuration (Free tier - no auth required)
-    OCR_SPACE_API_KEY: str = "K87899142"  # Free tier key
+    # OCR.Space Configuration
+    OCR_SPACE_API_KEY: str = ""
     
     # Google Cloud Vision Configuration (requires API key)
     GOOGLE_VISION_API_KEY: str = ""

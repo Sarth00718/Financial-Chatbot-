@@ -4,7 +4,7 @@
  */
 
 import mongoose from "mongoose";
-import { MESSAGE_ROLES } from "../config/constants.js";
+import { MESSAGE_ROLES, FEATURE_MODES } from "../config/constants.js";
 
 const messageSchema = new mongoose.Schema(
   {
@@ -43,6 +43,18 @@ const messageSchema = new mongoose.Schema(
         namespace: { type: String, default: "" },
       },
     ],
+    // Feature mode used when the message was created
+    featureUsed: {
+      type: String,
+      enum: Object.values(FEATURE_MODES),
+      default: null,
+      index: true,
+    },
+    // Structured data from AI
+    documentsData: { type: mongoose.Schema.Types.Mixed, default: {} },
+    insightsData: { type: mongoose.Schema.Types.Mixed, default: {} },
+    generalData: { type: mongoose.Schema.Types.Mixed, default: {} },
+    visualizationsData: { type: mongoose.Schema.Types.Mixed, default: [] },
   },
   { timestamps: true } // Automatically add createdAt and updatedAt
 );

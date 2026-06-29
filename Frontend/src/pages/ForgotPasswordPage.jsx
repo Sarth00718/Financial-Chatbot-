@@ -1,136 +1,93 @@
 /**
  * Forgot Password Page
- * Request password reset — premium themed, fully light/dark aware.
+ * MUI + React Hook Form.
  */
 
 import { useState } from 'react';
+import { useForm } from 'react-hook-form';
 import { Link } from 'react-router-dom';
+import { Box, Stack, Typography, TextField, InputAdornment, Paper, Container } from '@mui/material';
+import { Mail, ArrowBack, CheckCircleOutline, Insights } from '@mui/icons-material';
+import { LoadingButton } from '@mui/lab';
+import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
-import { BarChart3, Mail, ArrowLeft, CheckCircle } from 'lucide-react';
 import ThemeToggle from '../components/ThemeToggle';
 
 const ForgotPasswordPage = () => {
   const { forgotPassword } = useAuth();
-  const [email, setEmail]         = useState('');
-  const [loading, setLoading]     = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const [submittedEmail, setSubmittedEmail] = useState('');
+  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm({ defaultValues: { email: '' } });
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    const result = await forgotPassword({ email });
-    if (result.success) setSubmitted(true);
-    setLoading(false);
+  const onSubmit = async (data) => {
+    const result = await forgotPassword(data);
+    if (result.success) setSubmittedEmail(data.email);
   };
 
   return (
-    <div className="page-auth">
-      <div className="absolute top-4 right-4 z-20"><ThemeToggle /></div>
+    <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', bgcolor: 'background.default', position: 'relative' }}>
+      <Box sx={{ position: 'absolute', top: 16, right: 16, zIndex: 2 }}><ThemeToggle /></Box>
+      <Container maxWidth="xs">
+        <Box component={motion.div} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+          {submittedEmail ? (
+            <>
+              <Box sx={{ textAlign: 'center', mb: 4 }}>
+                <Box sx={{ width: 64, height: 64, mx: 'auto', mb: 2, borderRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #22C55E, #16A34A)' }}>
+                  <CheckCircleOutline sx={{ color: '#fff', fontSize: 32 }} />
+                </Box>
+                <Typography variant="h5" fontWeight={800} sx={{ mb: 1 }}>Check Your Email</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Reset instructions sent to <strong>{submittedEmail}</strong>
+                </Typography>
+              </Box>
+              <Paper variant="outlined" sx={{ p: 4, borderRadius: 4, textAlign: 'center' }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Didn't receive the email? Check your spam folder or try again.
+                </Typography>
+                <LoadingButton variant="outlined" fullWidth onClick={() => setSubmittedEmail('')} sx={{ mb: 2 }}>
+                  Try another email
+                </LoadingButton>
+                <Typography component={Link} to="/login" variant="body2" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, color: 'primary.main', textDecoration: 'none', fontWeight: 600 }}>
+                  <ArrowBack fontSize="small" /> Back to login
+                </Typography>
+              </Paper>
+            </>
+          ) : (
+            <>
+              <Box sx={{ textAlign: 'center', mb: 4 }}>
+                <Box sx={{ width: 64, height: 64, mx: 'auto', mb: 2, borderRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #2563EB, #7C3AED)' }}>
+                  <Insights sx={{ color: '#fff', fontSize: 32 }} />
+                </Box>
+                <Typography variant="h5" fontWeight={800} sx={{ mb: 1 }}>Forgot Password?</Typography>
+                <Typography variant="body2" color="text.secondary">No worries — we'll send you reset instructions</Typography>
+              </Box>
 
-      {/* Decorative blob */}
-      <div
-        className="absolute top-[-10%] left-[-8%] w-80 h-80 rounded-full animate-blob opacity-35 pointer-events-none"
-        style={{ background: 'radial-gradient(circle, rgba(37,99,235,0.3) 0%, transparent 70%)' }}
-      />
-
-      <div className="relative z-10 w-full max-w-md animate-fadeInUp">
-        {submitted ? (
-          <>
-            <div className="text-center mb-8">
-              <div
-                className="w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center shadow-xl"
-                style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)' }}
-              >
-                <CheckCircle className="w-8 h-8 text-white" />
-              </div>
-              <h1 className="text-3xl font-bold mb-1.5" style={{ color: 'var(--color-text-primary)' }}>
-                Check Your Email
-              </h1>
-              <p style={{ color: 'var(--color-text-secondary)' }}>
-                Reset instructions sent to{' '}
-                <strong style={{ color: 'var(--color-text-primary)' }}>{email}</strong>
-              </p>
-            </div>
-
-            <div className="auth-card text-center space-y-4">
-              <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-                Didn't receive the email? Check your spam folder or try again.
-              </p>
-              <button onClick={() => setSubmitted(false)} className="btn-secondary">
-                Try another email
-              </button>
-              <div className="pt-4 border-t" style={{ borderColor: 'var(--color-border)' }}>
-                <Link
-                  to="/login"
-                  className="inline-flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors"
-                >
-                  <ArrowLeft className="w-4 h-4" /> Back to login
-                </Link>
-              </div>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="text-center mb-8">
-              <div className="brand-icon mx-auto mb-4">
-                <BarChart3 className="w-8 h-8 text-white" />
-              </div>
-              <h1 className="text-3xl font-bold mb-1.5" style={{ color: 'var(--color-text-primary)' }}>
-                Forgot Password?
-              </h1>
-              <p style={{ color: 'var(--color-text-secondary)' }}>
-                No worries — we'll send you reset instructions
-              </p>
-            </div>
-
-            <div className="auth-card">
-              <form onSubmit={handleSubmit} className="space-y-5">
-                <div>
-                  <label htmlFor="email" className="block text-sm font-semibold mb-1.5" style={{ color: 'var(--color-text-secondary)' }}>
-                    Email Address
-                  </label>
-                  <div className="relative">
-                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
-                    <input
-                      id="email"
-                      type="email"
-                      autoComplete="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="input-field pl-10"
-                      placeholder="you@example.com"
+              <Paper variant="outlined" sx={{ p: 4, borderRadius: 4 }}>
+                <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
+                  <Stack spacing={2.5}>
+                    <TextField
+                      label="Email Address" type="email" fullWidth autoComplete="email" placeholder="you@example.com"
+                      error={!!errors.email} helperText={errors.email?.message}
+                      InputProps={{ startAdornment: <InputAdornment position="start"><Mail fontSize="small" /></InputAdornment> }}
+                      {...register('email', { required: 'Email is required', pattern: { value: /^\S+@\S+\.\S+$/, message: 'Enter a valid email' } })}
                     />
-                  </div>
-                </div>
+                    <LoadingButton type="submit" variant="contained" size="large" fullWidth loading={isSubmitting}>
+                      Send Reset Link
+                    </LoadingButton>
+                  </Stack>
+                </Box>
+                <Typography component={Link} to="/login" variant="body2" sx={{ mt: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, color: 'primary.main', textDecoration: 'none', fontWeight: 600 }}>
+                  <ArrowBack fontSize="small" /> Back to login
+                </Typography>
+              </Paper>
+            </>
+          )}
 
-                <button type="submit" disabled={loading} className="btn-primary w-full py-3 text-base">
-                  {loading ? (
-                    <span className="flex items-center gap-2">
-                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Sending…
-                    </span>
-                  ) : 'Send Reset Link'}
-                </button>
-              </form>
-
-              <div className="mt-6 pt-6 border-t" style={{ borderColor: 'var(--color-border)' }}>
-                <Link
-                  to="/login"
-                  className="flex items-center justify-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors"
-                >
-                  <ArrowLeft className="w-4 h-4" /> Back to login
-                </Link>
-              </div>
-            </div>
-          </>
-        )}
-
-        <p className="text-center text-xs mt-6" style={{ color: 'var(--color-text-muted)' }}>
-          © {new Date().getFullYear()} FinChatBot. All rights reserved.
-        </p>
-      </div>
-    </div>
+          <Typography variant="caption" color="text.secondary" align="center" display="block" sx={{ mt: 3 }}>
+            © {new Date().getFullYear()} FinChatBot. All rights reserved.
+          </Typography>
+        </Box>
+      </Container>
+    </Box>
   );
 };
 

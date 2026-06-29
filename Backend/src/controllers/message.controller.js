@@ -92,6 +92,7 @@ export const editAndRegenerateMessage = asyncHandler(async (req, res) => {
 
   // Update the user message
   message.content = content.trim();
+  message.featureUsed = message.conversation.featureUsed;
   await message.save();
 
   // Find and delete all messages after this one (including the old AI response)
@@ -117,6 +118,10 @@ export const editAndRegenerateMessage = asyncHandler(async (req, res) => {
   // Call Python AI service for new response
   let aiContent;
   let aiCitations = [];
+  let aiDocuments = {};
+  let aiInsights = {};
+  let aiGeneral = {};
+  let aiVisualizations = [];
   try {
     const axios = (await import("axios")).default;
     const response = await axios.post(
@@ -133,6 +138,10 @@ export const editAndRegenerateMessage = asyncHandler(async (req, res) => {
     );
     aiContent = response.data.answer;
     aiCitations = response.data.citations || [];
+    aiDocuments = response.data.documents || {};
+    aiInsights = response.data.insights || {};
+    aiGeneral = response.data.general || {};
+    aiVisualizations = response.data.visualizations || [];
   } catch (error) {
     console.error("Error calling Python AI service:", error.message);
     throw new ApiError(
@@ -150,7 +159,12 @@ export const editAndRegenerateMessage = asyncHandler(async (req, res) => {
     conversation: message.conversation._id,
     role: "assistant",
     content: aiContent,
+    featureUsed: message.conversation.featureUsed,
     citations: aiCitations,
+    documentsData: aiDocuments,
+    insightsData: aiInsights,
+    generalData: aiGeneral,
+    visualizationsData: aiVisualizations,
   });
 
   return res

@@ -1,52 +1,44 @@
 /**
- * Theme Toggle Component
- * Animated sun/moon button for light/dark mode switching.
- * Self-contained — reads from ThemeContext and applies class to <html>.
+ * Theme Toggle
+ * Animated light/dark mode switch built on MUI IconButton.
  */
 
-import { Sun, Moon } from 'lucide-react';
+import { IconButton, Tooltip } from '@mui/material';
+import { LightMode, DarkMode } from '@mui/icons-material';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '../contexts/ThemeContext';
 
-const ThemeToggle = ({ className = '' }) => {
-  const { theme, toggleTheme } = useTheme();
-  const isDark = theme === 'dark';
+const ThemeToggle = ({ size = 'medium' }) => {
+  const { isDark, toggleTheme } = useTheme();
 
   return (
-    <button
-      onClick={toggleTheme}
-      className={`icon-btn relative overflow-hidden ${className}`}
-      title={`Switch to ${isDark ? 'light' : 'dark'} mode`}
-      aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
-      aria-pressed={isDark}
-    >
-      {/* Animated icon swap */}
-      <span
-        className="transition-all duration-300"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          transform: isDark ? 'rotate(0deg) scale(1)' : 'rotate(-30deg) scale(0.8)',
-          opacity: isDark ? 1 : 0,
-          position: isDark ? 'static' : 'absolute',
+    <Tooltip title={`Switch to ${isDark ? 'light' : 'dark'} mode`}>
+      <IconButton
+        onClick={toggleTheme}
+        size={size}
+        aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
+        aria-pressed={isDark}
+        sx={{
+          position: 'relative',
+          color: isDark ? '#FBBF24' : 'text.secondary',
+          bgcolor: 'action.hover',
+          '&:hover': { bgcolor: 'action.selected' },
         }}
       >
-        <Sun className="w-5 h-5 text-yellow-400" />
-      </span>
-      <span
-        className="transition-all duration-300"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          transform: !isDark ? 'rotate(0deg) scale(1)' : 'rotate(30deg) scale(0.8)',
-          opacity: !isDark ? 1 : 0,
-          position: !isDark ? 'static' : 'absolute',
-        }}
-      >
-        <Moon className="w-5 h-5" style={{ color: 'var(--color-text-secondary)' }} />
-      </span>
-    </button>
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.span
+            key={isDark ? 'dark' : 'light'}
+            initial={{ rotate: -90, opacity: 0, scale: 0.6 }}
+            animate={{ rotate: 0, opacity: 1, scale: 1 }}
+            exit={{ rotate: 90, opacity: 0, scale: 0.6 }}
+            transition={{ duration: 0.2 }}
+            style={{ display: 'flex' }}
+          >
+            {isDark ? <DarkMode fontSize="inherit" /> : <LightMode fontSize="inherit" />}
+          </motion.span>
+        </AnimatePresence>
+      </IconButton>
+    </Tooltip>
   );
 };
 

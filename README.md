@@ -229,14 +229,14 @@ PORT=8000
 NODE_ENV=development
 
 # Database
-MONGODB_URI=mongodb://localhost:27017/finchatbot
-# For MongoDB Atlas: mongodb+srv://username:password@cluster.mongodb.net/finchatbot
+MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/finchatbot
+# For Local MongoDB: mongodb://localhost:27017/finchatbot
 
 # Python AI Service
-PYTHON_SERVICE_URL=http://localhost:5000
+PYTHON_SERVICE_URL=https://your-python-api.com
 
 # CORS Configuration
-CORS_ORIGIN=http://localhost:5173
+CORS_ORIGIN=https://your-frontend-domain.com
 
 # JWT Secrets (Generate strong secrets for production!)
 JWT_ACCESS_SECRET=your_super_secret_access_key_min_32_chars
@@ -247,7 +247,7 @@ EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
 EMAIL_USER=your_email@gmail.com
 EMAIL_PASSWORD=your_app_password
-```
+``` 
 
 #### 3️⃣ Python AI Engine Setup
 
