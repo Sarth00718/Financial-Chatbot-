@@ -30,24 +30,6 @@ import SmartSuggestions from '../components/SmartSuggestions';
 import EnterpriseInsights from '../components/EnterpriseInsights';
 import { ChatSkeleton } from '../components/ui/LoadingSkeleton';
 
-const FEATURE_CARDS = [
-  {
-    icon: Description,
-    title: 'Upload documents',
-    desc: 'PDF, Excel, CSV — ask questions about your files',
-  },
-  {
-    icon: QuestionAnswer,
-    title: 'Ask questions',
-    desc: 'Get instant answers grounded in your data',
-  },
-  {
-    icon: BarChart,
-    title: 'Analyse financials',
-    desc: 'Charts, trends, and key metrics on demand',
-  },
-];
-
 const FEATURE_UI_META = {
   Smart_Chat: {
     label: 'Smart Chat',
@@ -745,77 +727,6 @@ const ChatPage = () => {
             '&::-webkit-scrollbar-thumb': { borderRadius: 4, bgcolor: 'divider' },
           }}
         >
-          <Box sx={{ px: { xs: 2, md: 3 }, pt: 2, pb: 1 }}>
-            <Paper
-              variant="outlined"
-              sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 2,
-                p: 2,
-                borderColor: FEATURE_UI_META[selectedFeature]?.color || 'divider',
-                bgcolor: alpha(FEATURE_UI_META[selectedFeature]?.color || '#000', 0.08),
-                mb: 1,
-              }}
-            >
-              <Stack direction="row" alignItems="center" gap={1.5} justifyContent="space-between">
-                <Stack direction="row" alignItems="center" gap={1}>
-                  <Box
-                    sx={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 2,
-                      display: 'grid',
-                      placeItems: 'center',
-                      bgcolor: alpha(FEATURE_UI_META[selectedFeature]?.color || '#000', 0.16),
-                      color: FEATURE_UI_META[selectedFeature]?.color || '#000',
-                    }}
-                  >
-                    {FEATURE_UI_META[selectedFeature] && React.createElement(FEATURE_UI_META[selectedFeature].icon, { fontSize: 'small' })}
-                  </Box>
-                  <Box>
-                    <Typography variant="subtitle2" fontWeight={700}>
-                      {FEATURE_UI_META[selectedFeature]?.label || 'Enterprise AI Mode'}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                      {FEATURE_UI_META[selectedFeature]?.description || 'Choose an AI mode for the right enterprise experience.'}
-                    </Typography>
-                  </Box>
-                </Stack>
-                <Chip
-                  label={FEATURE_UI_META[selectedFeature]?.label || 'Mode'}
-                  size="small"
-                  sx={{
-                    color: FEATURE_UI_META[selectedFeature]?.color || 'text.primary',
-                    borderColor: FEATURE_UI_META[selectedFeature]?.color || 'divider',
-                    bgcolor: alpha(FEATURE_UI_META[selectedFeature]?.color || '#000', 0.12),
-                    fontWeight: 700,
-                  }}
-                />
-              </Stack>
-
-              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                {FEATURE_UI_META[selectedFeature]?.helpText || 'Mode-specific AI guidance is shown here.'}
-              </Typography>
-
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap">
-                {FEATURE_UI_META[selectedFeature]?.examples?.map((example) => (
-                  <Chip
-                    key={example}
-                    label={example}
-                    size="small"
-                    variant="outlined"
-                    sx={{
-                      borderColor: alpha(FEATURE_UI_META[selectedFeature]?.color || '#000', 0.25),
-                      color: 'text.primary',
-                      bgcolor: alpha(FEATURE_UI_META[selectedFeature]?.color || '#000', 0.04),
-                      fontSize: '0.8rem',
-                    }}
-                  />
-                ))}
-              </Stack>
-            </Paper>
-          </Box>
           <Container
             maxWidth="md"
             sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, md: 3 } }}
@@ -856,37 +767,6 @@ const ChatPage = () => {
                 >
                   Upload a document or type a question to get started.
                 </Typography>
-
-                <Stack
-                  direction={{ xs: 'column', sm: 'row' }}
-                  spacing={1.5}
-                  justifyContent="center"
-                  sx={{ maxWidth: 580, mx: 'auto' }}
-                >
-                  {FEATURE_CARDS.map(({ icon: Icon, title, desc }) => (
-                    <Paper
-                      key={title}
-                      variant="outlined"
-                      sx={{
-                        flex: 1,
-                        p: 2,
-                        borderRadius: 2.5,
-                        textAlign: 'left',
-                        cursor: 'default',
-                        transition: 'border-color 0.15s',
-                        '&:hover': { borderColor: 'primary.main' },
-                      }}
-                    >
-                      <Icon sx={{ fontSize: 22, color: 'primary.main', mb: 0.75 }} />
-                      <Typography variant="body2" fontWeight={700} gutterBottom>
-                        {title}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" lineHeight={1.4} display="block">
-                        {desc}
-                      </Typography>
-                    </Paper>
-                  ))}
-                </Stack>
               </Box>
             )}
 

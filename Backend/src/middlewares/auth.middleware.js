@@ -47,8 +47,8 @@ export const authenticate = asyncHandler(async (req, res, next) => {
     req.user = user;
     next();
   } catch (error) {
-    // If access token expired, try to refresh
-    if (error.message.includes("expired") && req.cookies?.refreshToken) {
+    // Only attempt refresh for genuine token expiry, not forged/invalid tokens
+    if (error.name === "TokenExpiredError" && req.cookies?.refreshToken) {
       try {
         const refreshToken = req.cookies.refreshToken;
         const decoded = verifyRefreshToken(refreshToken);
@@ -66,17 +66,23 @@ export const authenticate = asyncHandler(async (req, res, next) => {
 
         // Generate new access token
         const newAccessToken = generateAccessToken({ userId: user._id, role: user.role });
-        setTokenCookie(res, "accessToken", newAccessToken, 15 * 60 * 1000); // 15 minutes
+        setTokenCookie(res, "accessToken", newAccessToken, 15 * 60 * 1000);
 
         // Attach user to request
         req.user = user;
         return next();
       } catch (refreshError) {
+        // Re-throw ApiErrors directly; wrap JWT errors
+        if (refreshError.statusCode) throw refreshError;
         throw new ApiError(401, "Session expired. Please login again.");
       }
     }
 
-    throw new ApiError(401, error.message || "Invalid authentication token");
+    // For ApiErrors (user not found, deactivated), re-throw as-is
+    if (error.statusCode) throw error;
+
+    // For all other JWT errors (invalid signature, malformed, etc.)
+    throw new ApiError(401, "Invalid authentication token. Please login again.");
   }
 });
 

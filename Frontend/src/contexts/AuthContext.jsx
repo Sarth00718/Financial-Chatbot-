@@ -29,8 +29,9 @@ export const AuthProvider = ({ children }) => {
 
   const checkAuth = async () => {
     try {
-      // Skip automatic token refresh on initial auth check
-      const response = await authAPI.getProfile({ skipRefresh: true });
+      // Call /auth/me — if access token is expired the interceptor will
+      // automatically call /auth/refresh and retry, so skipRefresh must NOT be set
+      const response = await authAPI.getProfile();
       if (response.data && response.data.data) {
         setUser(response.data.data);
         setIsAuthenticated(true);
@@ -39,7 +40,7 @@ export const AuthProvider = ({ children }) => {
         setIsAuthenticated(false);
       }
     } catch (error) {
-      // Silently fail - user is not authenticated
+      // Silently fail — user is not authenticated or both tokens expired
       setUser(null);
       setIsAuthenticated(false);
     } finally {

@@ -7,6 +7,8 @@ import { Message } from "../models/Message.model.js";
 import { Conversation } from "../models/Conversation.model.js";
 import axios from "axios";
 
+const ENTERPRISE_FEATURE_MODES = new Set(['Document_Analysis', 'Analytical_Insights']);
+
 /**
  * Handle new chat message via Socket.IO
  * Provides real-time chat experience
@@ -59,6 +61,9 @@ export const handleSocketChatMessage = async (socket, data) => {
       .filter((doc) => doc.status === "processed")
       .map((doc) => doc.vectorNamespace);
 
+    const featureMode = conversation.featureUsed || 'Smart_Chat';
+    const isEnterpriseMode = ENTERPRISE_FEATURE_MODES.has(featureMode);
+
     // Call Python AI service
     try {
       const response = await axios.post(
@@ -67,31 +72,50 @@ export const handleSocketChatMessage = async (socket, data) => {
           question: content,
           chatHistory: chatHistory,
           vectorNamespaces: vectorNamespaces,
-          featureUsed: conversation.featureUsed,
+          featureUsed: featureMode,
         },
         {
-          timeout: 30000, // 30 second timeout
+          timeout: 30000,
         }
       );
 
-      const aiContent = response.data.answer;
-      const aiCitations = response.data.citations || [];
-      const aiDocuments = response.data.documents || {};
-      const aiInsights = response.data.insights || {};
-      const aiGeneral = response.data.general || {};
-      const aiVisualizations = response.data.visualizations || [];
+      const aiResponse = response.data;
+      const aiCitations = aiResponse.citations || [];
+      const aiDocuments = aiResponse.documents || {};
+      const aiInsights = aiResponse.insights || [];
+      const aiGeneral = aiResponse.general || {};
+      const aiVisualizations = aiResponse.visualizations || [];
+      const aiAnalysisType = aiResponse.analysisType || null;
+
+      // For enterprise modes: store the full structured payload as JSON content
+      // so the frontend can reconstruct the complete result object from a single field
+      let messageContent;
+      if (isEnterpriseMode) {
+        const fullPayload = {
+          answer: aiResponse.answer || '',
+          analysisType: aiAnalysisType,
+          documents: aiDocuments,
+          insights: aiInsights,
+          general: aiGeneral,
+          visualizations: aiVisualizations,
+        };
+        messageContent = JSON.stringify(fullPayload);
+      } else {
+        messageContent = aiResponse.answer || '';
+      }
 
       // Save AI's response
       const assistantMessage = await Message.create({
         conversation: conversationId,
         role: "assistant",
-        content: aiContent,
-        featureUsed: conversation.featureUsed,
+        content: messageContent,
+        featureUsed: featureMode,
         citations: aiCitations,
         documentsData: aiDocuments,
         insightsData: aiInsights,
         generalData: aiGeneral,
         visualizationsData: aiVisualizations,
+        analysisType: aiAnalysisType,
       });
 
       // Emit AI response to all clients in the conversation room

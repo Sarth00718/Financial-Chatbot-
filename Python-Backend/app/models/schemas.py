@@ -131,6 +131,25 @@ class EnterpriseAnalysisResponse(BaseModel):
     analysisType: str
     answer: str
     citations: List[Citation] = Field(default=[])
+    documents: Optional[Dict] = Field(default={}, description="Document metadata and comparison rows")
+    insights: Optional[List[Dict]] = Field(default=[], description="Structured insights such as KPIs, risks, or findings")
+    general: Optional[Dict] = Field(default={}, description="General metadata and extracted SWOT details")
+    visualizations: Optional[List[Dict]] = Field(default=[], description="Chart payloads for visualization components")
+    metadata: Dict = Field(default={})
+
+
+class EnterpriseChartRequest(BaseModel):
+    """Request for enterprise chart extraction endpoint."""
+    analysisType: str = Field(..., description="Type of analysis to derive charts from")
+    vectorNamespaces: List[str] = Field(default=[], description="Document namespaces to analyze")
+    question: str = Field(default="", description="Optional custom question or focus area")
+    chatHistory: List[Dict[str, str]] = Field(default=[], description="Optional chat history for explain mode")
+
+
+class EnterpriseChartResponse(BaseModel):
+    """Response from enterprise chart extraction endpoint."""
+    analysisType: str
+    visualizations: List[Dict] = Field(default=[], description="Chart visualization payload")
     metadata: Dict = Field(default={})
 
 

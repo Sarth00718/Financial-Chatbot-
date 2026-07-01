@@ -68,15 +68,21 @@ const defaultDevOrigins = [
 const allowedCorsOrigins = Array.from(
   new Set([
     ...allowedOrigins,
-    ...(process.env.NODE_ENV === "development" ? defaultDevOrigins : []),
+    ...(process.env.NODE_ENV !== "production" ? defaultDevOrigins : []),
   ])
 );
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Allow requests with no origin (like Postman or native mobile clients)
+      // Allow requests with no origin (Postman, mobile clients, same-origin Vite proxy)
       if (!origin) return callback(null, true);
+
+      // If no origins configured at all, allow in development, block in production
+      if (allowedCorsOrigins.length === 0) {
+        if (process.env.NODE_ENV !== "production") return callback(null, true);
+        return callback(new Error("CORS not configured — request blocked"));
+      }
 
       const normalizedOrigin = origin.trim();
       const isAllowed = allowedCorsOrigins.some(
@@ -86,7 +92,7 @@ app.use(
       if (isAllowed) {
         callback(null, true);
       } else {
-        callback(new Error("CORS not allowed for this origin"));
+        callback(new Error(`CORS not allowed for origin: ${normalizedOrigin}`));
       }
     },
     credentials: true,

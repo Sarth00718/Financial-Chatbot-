@@ -34,10 +34,16 @@ const allowedSocketOrigins = CORS_ORIGIN
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+// In development always allow localhost origins; never fall back to true (allow all)
+const devOrigins = ["http://localhost:5173", "http://127.0.0.1:5173"];
+const socketOrigins = allowedSocketOrigins.length > 0
+  ? allowedSocketOrigins
+  : (process.env.NODE_ENV === "development" ? devOrigins : []);
+
 const io = new Server(httpServer, {
-  pingTimeout: 60000, // 60 seconds
+  pingTimeout: 60000,
   cors: {
-    origin: allowedSocketOrigins.length === 0 ? true : allowedSocketOrigins,
+    origin: socketOrigins.length > 0 ? socketOrigins : false,
     credentials: true,
   },
 });

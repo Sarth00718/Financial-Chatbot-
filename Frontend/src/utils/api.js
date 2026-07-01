@@ -16,7 +16,8 @@ const normalizeUrl = (url) => {
 };
 
 const API_URL = import.meta.env.VITE_API_URL || DEFAULT_API_BASE;
-const backendOrigin = normalizeUrl(import.meta.env.VITE_API_URL) || '';
+// BACKEND_ORIGIN: used for Socket.IO direct WS connection (bypasses Vite proxy)
+const backendOrigin = import.meta.env.VITE_BACKEND_ORIGIN || normalizeUrl(import.meta.env.VITE_API_URL) || '';
 const googleAuthUrl = backendOrigin ? `${backendOrigin}/api/v1/auth/google` : '/api/v1/auth/google';
 
 // Create axios instance with default config
@@ -239,6 +240,8 @@ export const enterpriseAPI = {
   getAnalysisTypes: () => api.get('/enterprise/analysis-types'),
 
   analyze: (data) => api.post('/enterprise/analyze', data, { timeout: 90000 }),
+
+  getCharts: (data) => api.post('/enterprise/charts', data, { timeout: 90000 }),
 
   getAuditSummary: (data) => api.post('/enterprise/audit-summary', data, { timeout: 90000 }),
 

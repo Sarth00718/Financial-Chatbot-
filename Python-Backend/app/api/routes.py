@@ -13,6 +13,8 @@ from app.models.schemas import (
     HealthResponse,
     EnterpriseAnalysisRequest,
     EnterpriseAnalysisResponse,
+    EnterpriseChartRequest,
+    EnterpriseChartResponse,
 )
 from app.services.document_processor import document_processor
 from app.services.rag_service import rag_service
@@ -276,9 +278,13 @@ async def enterprise_analyze(request: EnterpriseAnalysisRequest):
         )
 
         return EnterpriseAnalysisResponse(
-            analysisType=request.analysisType,
+            analysisType=result.get("analysisType", request.analysisType),
             answer=result.get("answer", ""),
             citations=result.get("citations", []),
+            documents=result.get("documents", {}),
+            insights=result.get("insights", []),
+            general=result.get("general", {}),
+            visualizations=result.get("visualizations", []),
             metadata=result.get("metadata", {}),
         )
 
@@ -289,6 +295,40 @@ async def enterprise_analyze(request: EnterpriseAnalysisRequest):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Enterprise analysis failed: {str(e)}")
+
+
+@router.post("/enterprise/charts", response_model=EnterpriseChartResponse)
+async def enterprise_charts(request: EnterpriseChartRequest):
+    """
+    Enterprise chart extraction endpoint.
+    Returns only visualization payloads for mode-specific enterprise analysis.
+    """
+    try:
+        if not request.vectorNamespaces:
+            raise HTTPException(status_code=400, detail="No vector namespaces provided")
+
+        print(f"\n[ENTERPRISE CHARTS] {request.analysisType} on {len(request.vectorNamespaces)} document(s)")
+
+        result = await rag_service.run_enterprise_charts(
+            analysis_type=request.analysisType,
+            namespaces=request.vectorNamespaces,
+            question=request.question,
+            chat_history=request.chatHistory,
+        )
+
+        return EnterpriseChartResponse(
+            analysisType=request.analysisType,
+            visualizations=result.get("visualizations", []),
+            metadata=result.get("metadata", {}),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR] Enterprise chart extraction failed: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Enterprise chart extraction failed: {str(e)}")
 
 
 @router.get("/enterprise/analysis-types")

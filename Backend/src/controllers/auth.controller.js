@@ -166,7 +166,8 @@ export const logout = asyncHandler(async (req, res) => {
  * GET /api/v1/auth/me
  */
 export const getProfile = asyncHandler(async (req, res) => {
-  const user = await User.findById(req.user._id);
+  const user = await User.findById(req.user._id)
+    .select("-password -refreshToken -resetPasswordToken -resetPasswordExpire");
 
   if (!user) {
     throw new ApiError(404, "User not found");

@@ -22,7 +22,7 @@ router.get("/user", getUserAnalytics);
 // Admin analytics (system-wide stats)
 router.get("/admin", authorize("admin"), getAdminAnalytics);
 
-// Export analytics
-router.get("/export", exportAnalytics);
+// Export analytics — admin only in production; any authenticated user in development
+router.get("/export", process.env.NODE_ENV === "production" ? authorize("admin") : (req, res, next) => next(), exportAnalytics);
 
 export default router;

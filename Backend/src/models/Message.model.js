@@ -55,6 +55,8 @@ const messageSchema = new mongoose.Schema(
     insightsData: { type: mongoose.Schema.Types.Mixed, default: {} },
     generalData: { type: mongoose.Schema.Types.Mixed, default: {} },
     visualizationsData: { type: mongoose.Schema.Types.Mixed, default: [] },
+    // Analysis type for enterprise modes
+    analysisType: { type: String, default: null },
   },
   { timestamps: true } // Automatically add createdAt and updatedAt
 );

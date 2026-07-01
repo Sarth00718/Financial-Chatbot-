@@ -139,6 +139,42 @@ export const getAnalysisTypes = asyncHandler(async (req, res) => {
   }
 });
 
+export const getEnterpriseCharts = asyncHandler(async (req, res) => {
+  const { analysisType, conversationId, documentIds, question } = req.body;
+
+  if (!analysisType || !VALID_ANALYSIS_TYPES.includes(analysisType)) {
+    throw new ApiError(
+      400,
+      `Invalid analysisType. Must be one of: ${VALID_ANALYSIS_TYPES.join(", ")}`
+    );
+  }
+
+  const vectorNamespaces = await resolveNamespaces(req.user._id, {
+    conversationId,
+    documentIds,
+  });
+
+  try {
+    const response = await axios.post(
+      `${getPythonUrl()}/enterprise/charts`,
+      {
+        analysisType,
+        vectorNamespaces,
+        question: question || "",
+        chatHistory: [],
+      },
+      { timeout: 60000 }
+    );
+
+    return res.status(200).json(
+      new ApiResponse(200, response.data, "Enterprise charts retrieved")
+    );
+  } catch (error) {
+    console.error("Enterprise chart extraction error:", error.message);
+    throw new ApiError(502, "Enterprise AI service unavailable");
+  }
+});
+
 /**
  * POST /api/v1/enterprise/audit-summary
  */

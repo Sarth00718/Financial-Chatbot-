@@ -1,24 +1,29 @@
 /**
  * Message
  * Renders one chat message (user / assistant / system) — pure MUI.
- * Supports markdown for assistant replies, edit/delete for user messages,
- * citations, and data visualization. Logic unchanged from the original.
+ * Enterprise AI modes (Document_Analysis, Analytical_Insights) are routed
+ * through AnalysisResultView for SWOT cards, KPI tiles, and charts.
  */
 
 import React, { useState, useEffect } from 'react';
 import {
-  Box, Stack, Avatar, Paper, Typography, IconButton, TextField, Button, Tooltip, Tabs, Tab, Chip,
+  Box, Stack, Avatar, Paper, Typography, IconButton, TextField, Button, Tooltip, Chip,
 } from '@mui/material';
 import {
-  Person, Insights, InfoOutlined, Edit, Delete, Check, Close, Description, Assignment, AutoGraph, ChatBubbleOutline,
+  Person, Insights, InfoOutlined, Edit, Delete, Check, Close,
 } from '@mui/icons-material';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { SpeakerButton } from './VoiceInput';
 import DataVisualization from './DataVisualization';
 import CitationPanel from './CitationPanel';
+import AnalysisResultView from './AnalysisResultView';
 import { messageAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
+
+/* Modes that get the full enterprise result view */
+const ENTERPRISE_MODES = new Set(['Document_Analysis', 'Analytical_Insights']);
 
 const parseJsonFromText = (text) => {
   if (!text || typeof text !== 'string') return null;
@@ -202,12 +207,23 @@ const getAssistantAnswer = (content) => {
   const parsed = parseJsonFromText(content);
   if (parsed && typeof parsed === 'object') {
     if (typeof parsed.answer === 'string' && parsed.answer.trim().length > 0) {
-      return parsed.answer;
+      // Strip any JSON wrapper artifacts the LLM prepended to the answer text
+      let ans = parsed.answer
+        .replace(/^\{\s*["']?answer["']?\s*:\s*["']/i, '')
+        .replace(/\n+Visualizations?:[\s\S]*$/i, '')
+        .replace(/###\s*.*?\s*###\n*/g, '')
+        .trim();
+      return ans;
     }
   }
 
+  // Fallback: try extracting the answer field from raw text
   const text = extractStringField(content, 'answer');
   if (text) return text;
+
+  // If content itself starts with { it is raw JSON — return empty (AnalysisResultView will handle it)
+  if (content && content.trimStart().startsWith('{')) return '';
+
   return content;
 };
 
@@ -249,25 +265,6 @@ const FEATURE_MODE_META = {
   General_Conversation: { label: 'General Conversation', color: '#64748B' },
 };
 
-const FEATURE_MODE_TABS = {
-  Smart_Chat: [
-    { key: 'answer', label: 'Answer', icon: ChatBubbleOutline },
-  ],
-  Document_Analysis: [
-    { key: 'answer', label: 'Answer', icon: ChatBubbleOutline },
-    { key: 'documents', label: 'Documents', icon: Description },
-    { key: 'visualizations', label: 'Visualizations', icon: AutoGraph },
-  ],
-  Analytical_Insights: [
-    { key: 'answer', label: 'Answer', icon: ChatBubbleOutline },
-    { key: 'insights', label: 'Insights', icon: AutoGraph },
-    { key: 'visualizations', label: 'Visualizations', icon: AutoGraph },
-  ],
-  General_Conversation: [
-    { key: 'answer', label: 'Answer', icon: ChatBubbleOutline },
-  ],
-};
-
 const Message = ({ message, onMessageUpdate, onMessageDelete, onRegenerateResponse, featureMode }) => {
   const { user } = useAuth();
   const { role, content, createdAt, citations } = message;
@@ -276,7 +273,6 @@ const Message = ({ message, onMessageUpdate, onMessageDelete, onRegenerateRespon
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [activeTab, setActiveTab] = useState(0);
 
   const isUser = role === 'user';
   const isAssistant = role === 'assistant';
@@ -286,26 +282,46 @@ const Message = ({ message, onMessageUpdate, onMessageDelete, onRegenerateRespon
   const modeMeta = FEATURE_MODE_META[mode] || FEATURE_MODE_META.Smart_Chat;
 
   const parsedJson = parseJsonFromText(content) || {};
-  const documentsData = isNonEmptyObject(message.documentsData) ? message.documentsData : parsedJson.documents || {};
-  const insightsData = isNonEmptyObject(message.insightsData) ? message.insightsData : parsedJson.insights || {};
-  const generalData = isNonEmptyObject(message.generalData) ? message.generalData : parsedJson.general || {};
+  const hasEnterprisePayload = Boolean(
+    parsedJson && typeof parsedJson === 'object' && (
+      parsedJson.insights || parsedJson.visualizations || parsedJson.general || parsedJson.documents || parsedJson.analysisType
+    )
+  );
+  const isEnterpriseMode = ENTERPRISE_MODES.has(mode) || hasEnterprisePayload;
+
+  // For enterprise modes or structured enterprise payloads: pass the full payload to AnalysisResultView
+  // When content is stored as full JSON (new path), parsedJson has everything.
+  // When content is just the answer string with separate fields on message (old path), merge them.
+  const enterpriseResult = (() => {
+    // New path: content IS the full structured JSON payload
+    if (parsedJson && parsedJson.analysisType) {
+      return {
+        answer: parsedJson.answer ?? '',
+        analysisType: parsedJson.analysisType,
+        documents: parsedJson.documents ?? {},
+        insights: parsedJson.insights ?? [],
+        general: parsedJson.general ?? null,
+        visualizations: parsedJson.visualizations ?? [],
+        metadata: parsedJson.metadata ?? {},
+        citations: parsedJson.citations ?? citations ?? [],
+      };
+    }
+    // Old path or mixed: content is answer text, structured data on message fields
+    return {
+      answer: parsedJson.answer ?? content,
+      analysisType: parsedJson.analysisType ?? message.analysisType ?? null,
+      documents: parsedJson.documents ?? message.documentsData ?? {},
+      insights: parsedJson.insights ?? message.insightsData ?? [],
+      general: parsedJson.general ?? message.generalData ?? null,
+      visualizations: parsedJson.visualizations ?? message.visualizationsData ?? [],
+      metadata: parsedJson.metadata ?? {},
+      citations: parsedJson.citations ?? citations ?? [],
+    };
+  })();
+
   const visualizationPayload = getVisualizationPayload(message);
 
-  const availableTabs = (FEATURE_MODE_TABS[mode] || FEATURE_MODE_TABS.Smart_Chat)
-    .filter((tab) => {
-      if (tab.key === 'answer') return true;
-      if (tab.key === 'documents') return hasStructuredFields(documentsData);
-      if (tab.key === 'insights') return hasStructuredFields(insightsData);
-      if (tab.key === 'general') return hasStructuredFields(generalData);
-      if (tab.key === 'visualizations') return visualizationPayload.length > 0;
-      return false;
-    });
-
-  const hasStructuredContent = availableTabs.length > 1;
-
-  useEffect(() => {
-    setActiveTab(0);
-  }, [content, mode]);
+  useEffect(() => { /* reset nothing; no tab state needed */ }, [content, mode]);
 
   const handleEdit = async () => {
     if (!editContent.trim() || editContent === content) {
@@ -411,7 +427,7 @@ const Message = ({ message, onMessageUpdate, onMessageDelete, onRegenerateRespon
         </Avatar>
       )}
 
-      <Box sx={{ maxWidth: { xs: '82%', md: '68%' }, display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-end' : 'flex-start' }}>
+      <Box sx={{ maxWidth: isEnterpriseMode ? { xs: '96%', md: '88%' } : { xs: '82%', md: '68%' }, display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-end' : 'flex-start' }}>
         {isUser && (
           <Typography variant="caption" sx={{ color: 'text.secondary', mb: 0.5, textAlign: 'right' }}>
             {user?.name || user?.email || 'You'}
@@ -479,98 +495,26 @@ const Message = ({ message, onMessageUpdate, onMessageDelete, onRegenerateRespon
                 </Stack>
               ) : isAssistant ? (
                 <Box sx={{ width: '100%' }}>
-                  {hasStructuredContent && availableTabs.length > 1 ? (
+                  {isEnterpriseMode ? (
+                    /* ── Enterprise AI mode: full structured card view ── */
                     <>
-                      <Tabs 
-                        value={activeTab} 
-                        onChange={(e, v) => setActiveTab(v)} 
-                        variant="scrollable"
-                        scrollButtons="auto"
-                        sx={{ mb: 2, borderBottom: 1, borderColor: 'divider', minHeight: 36 }}
-                      >
-                        {availableTabs.map((tab, index) => (
-                          <Tab
-                            key={tab.key}
-                            value={index}
-                            icon={React.createElement(tab.icon, { sx: { fontSize: 16 } })}
-                            iconPosition="start"
-                            label={tab.label}
-                            sx={{ minHeight: 36, textTransform: 'none', py: 0 }}
-                          />
-                        ))}
-                      </Tabs>
-
-                      {availableTabs[activeTab]?.key === 'answer' && (
-                        <Box className="prose-chat">
-                          <ReactMarkdown>{assistantText}</ReactMarkdown>
-                          <CitationPanel citations={citations} />
-                          {visualizationPayload.length > 0 && (
-                            <DataVisualization content="" data={visualizationPayload} />
-                          )}
-                        </Box>
-                      )}
-
-                      {availableTabs[activeTab]?.key === 'documents' && documentsData && (
-                        <Stack spacing={2} sx={{ mt: 2 }}>
-                          {Object.entries(documentsData).map(([k, v]) => {
-                            if (!v || (Array.isArray(v) && v.length === 0)) return null;
-                            return (
-                              <Paper key={k} variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: 'background.paper' }}>
-                                <Typography variant="subtitle2" sx={{ textTransform: 'capitalize', color: 'primary.main', mb: 1, fontWeight: 700 }}>
-                                  {k.replace(/_/g, ' ')}
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
-                                  {Array.isArray(v) ? v.join('\n• ') : (typeof v === 'object' ? JSON.stringify(v) : v)}
-                                </Typography>
-                              </Paper>
-                            );
-                          })}
-                        </Stack>
-                      )}
-
-                      {availableTabs[activeTab]?.key === 'insights' && insightsData && (
-                        <Stack spacing={2} sx={{ mt: 2 }}>
-                          {Object.entries(insightsData).map(([k, v]) => {
-                            if (!v || (Array.isArray(v) && v.length === 0)) return null;
-                            return (
-                              <Paper key={k} variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: 'background.paper' }}>
-                                <Typography variant="subtitle2" sx={{ textTransform: 'capitalize', color: 'primary.main', mb: 1, fontWeight: 700 }}>
-                                  {k.replace(/_/g, ' ')}
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
-                                  {Array.isArray(v) ? v.join('\n• ') : (typeof v === 'object' ? JSON.stringify(v) : v)}
-                                </Typography>
-                              </Paper>
-                            );
-                          })}
-                        </Stack>
-                      )}
-
-                      {availableTabs[activeTab]?.key === 'general' && generalData && (
-                        <Stack spacing={2} sx={{ mt: 2 }}>
-                          {Object.entries(generalData).map(([k, v]) => {
-                            if (!v || (Array.isArray(v) && v.length === 0)) return null;
-                            return (
-                              <Paper key={k} variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: 'background.paper' }}>
-                                <Typography variant="subtitle2" sx={{ textTransform: 'capitalize', color: 'primary.main', mb: 1, fontWeight: 700 }}>
-                                  {k.replace(/_/g, ' ')}
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
-                                  {Array.isArray(v) ? v.join('\n• ') : (typeof v === 'object' ? JSON.stringify(v) : v)}
-                                </Typography>
-                              </Paper>
-                            );
-                          })}
-                        </Stack>
-                      )}
-
-                      {availableTabs[activeTab]?.key === 'visualizations' && visualizationPayload.length > 0 && (
-                        <DataVisualization content="" data={visualizationPayload} />
-                      )}
+                      <AnalysisResultView
+                        result={enterpriseResult}
+                        accentColor={modeMeta.color}
+                      />
+                      <CitationPanel citations={citations} />
                     </>
                   ) : (
-                    <Box className="prose-chat">
-                      <ReactMarkdown>{assistantText}</ReactMarkdown>
+                    /* ── Smart Chat / General Conversation: plain markdown ── */
+                    <Box className="prose-chat" sx={{
+                      '& table': { borderCollapse: 'collapse', width: '100%', my: 1, display: 'block', overflowX: 'auto' },
+                      '& th': { border: '1px solid', borderColor: 'divider', px: 1.5, py: 0.75, fontWeight: 700, fontSize: '0.8125rem', textAlign: 'left', bgcolor: 'action.hover' },
+                      '& td': { border: '1px solid', borderColor: 'divider', px: 1.5, py: 0.5, fontSize: '0.8125rem' },
+                      '& tr:nth-of-type(even)': { bgcolor: 'action.hover' },
+                      '& p': { my: 0.75 },
+                      '& ul,& ol': { pl: 3 },
+                    }}>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{assistantText}</ReactMarkdown>
                       <CitationPanel citations={citations} />
                       {visualizationPayload.length > 0 && (
                         <DataVisualization content="" data={visualizationPayload} />
@@ -612,19 +556,7 @@ const Message = ({ message, onMessageUpdate, onMessageDelete, onRegenerateRespon
           </Typography>
         )}
 
-        {isAssistant && !isEditing && !(
-          message.documentsData ||
-          message.insightsData ||
-          message.generalData ||
-          (message.visualizationsData && message.visualizationsData.length > 0) ||
-          visualizationPayload.length > 0
-        ) && (
-          null
-        )}
-
-        {isAssistant && !isEditing && visualizationPayload.length > 0 && (
-          <DataVisualization content="" data={visualizationPayload} />
-        )}
+        {/* Charts already rendered inside AnalysisResultView for enterprise modes */}
       </Box>
 
       {isUser && (

@@ -7,8 +7,6 @@ import jwt from "jsonwebtoken";
 
 /**
  * Generate Access Token (short-lived)
- * @param {Object} payload - User data to encode
- * @returns {String} JWT token
  */
 export const generateAccessToken = (payload) => {
   return jwt.sign(payload, process.env.JWT_ACCESS_SECRET, {
@@ -18,8 +16,6 @@ export const generateAccessToken = (payload) => {
 
 /**
  * Generate Refresh Token (long-lived)
- * @param {Object} payload - User data to encode
- * @returns {String} JWT token
  */
 export const generateRefreshToken = (payload) => {
   return jwt.sign(payload, process.env.JWT_REFRESH_SECRET, {
@@ -29,75 +25,62 @@ export const generateRefreshToken = (payload) => {
 
 /**
  * Verify Access Token
- * @param {String} token - JWT token to verify
- * @returns {Object} Decoded payload
+ * Preserves the original JWT error (TokenExpiredError / JsonWebTokenError)
+ * so the auth middleware and error handler can inspect error.name correctly.
  */
 export const verifyAccessToken = (token) => {
-  try {
-    return jwt.verify(token, process.env.JWT_ACCESS_SECRET);
-  } catch (error) {
-    throw new Error("Invalid or expired access token");
-  }
+  // Let the original JWT error propagate — do NOT wrap it
+  return jwt.verify(token, process.env.JWT_ACCESS_SECRET);
 };
 
 /**
  * Verify Refresh Token
- * @param {String} token - JWT token to verify
- * @returns {Object} Decoded payload
+ * Preserves the original JWT error.
  */
 export const verifyRefreshToken = (token) => {
-  try {
-    return jwt.verify(token, process.env.JWT_REFRESH_SECRET);
-  } catch (error) {
-    throw new Error("Invalid or expired refresh token");
-  }
+  return jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+};
+
+/**
+ * Build consistent cookie options for both set and clear operations.
+ * Uses the same SameSite value so clear always matches what was set.
+ */
+const getCookieOptions = () => {
+  const isProduction = process.env.NODE_ENV === "production";
+  const sameSite = process.env.COOKIE_SAME_SITE || (isProduction ? "none" : "lax");
+  const secure = process.env.COOKIE_SECURE === "true" || isProduction;
+  return { sameSite, secure };
 };
 
 /**
  * Set HTTP-only cookie with token
- * @param {Object} res - Express response object
- * @param {String} name - Cookie name
- * @param {String} token - Token value
- * @param {Number} maxAge - Cookie expiration in milliseconds
  */
 export const setTokenCookie = (res, name, token, maxAge) => {
-  const isProduction = process.env.NODE_ENV === "production";
-  const sameSite = process.env.COOKIE_SAME_SITE || (isProduction ? "none" : "lax");
-  const secure = process.env.COOKIE_SECURE === "true" || isProduction;
-  const cookieOptions = {
+  const { sameSite, secure } = getCookieOptions();
+  const options = {
     httpOnly: true,
     secure,
     sameSite,
     maxAge,
     path: "/",
   };
-
-  if (process.env.COOKIE_DOMAIN) {
-    cookieOptions.domain = process.env.COOKIE_DOMAIN;
-  }
-
-  res.cookie(name, token, cookieOptions);
+  if (process.env.COOKIE_DOMAIN) options.domain = process.env.COOKIE_DOMAIN;
+  res.cookie(name, token, options);
 };
 
 /**
  * Clear authentication cookies
- * @param {Object} res - Express response object
+ * Uses the SAME SameSite/Secure as setTokenCookie to ensure the browser matches them.
  */
 export const clearAuthCookies = (res) => {
-  const isProduction = process.env.NODE_ENV === "production";
-  const sameSite = process.env.COOKIE_SAME_SITE || "none";
-  const secure = process.env.COOKIE_SECURE === "true" || isProduction;
-  const cookieOptions = {
+  const { sameSite, secure } = getCookieOptions();
+  const options = {
     httpOnly: true,
     secure,
     sameSite,
     path: "/",
   };
-
-  if (process.env.COOKIE_DOMAIN) {
-    cookieOptions.domain = process.env.COOKIE_DOMAIN;
-  }
-
-  res.clearCookie("accessToken", cookieOptions);
-  res.clearCookie("refreshToken", cookieOptions);
+  if (process.env.COOKIE_DOMAIN) options.domain = process.env.COOKIE_DOMAIN;
+  res.clearCookie("accessToken", options);
+  res.clearCookie("refreshToken", options);
 };

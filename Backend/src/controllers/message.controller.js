@@ -116,12 +116,17 @@ export const editAndRegenerateMessage = asyncHandler(async (req, res) => {
     .map((doc) => doc.vectorNamespace);
 
   // Call Python AI service for new response
-  let aiContent;
+  const featureMode = message.conversation.featureUsed || 'Smart_Chat';
+  const isEnterpriseMode = new Set(['Document_Analysis', 'Analytical_Insights']).has(featureMode);
+
+  let aiResponse = {};
   let aiCitations = [];
   let aiDocuments = {};
-  let aiInsights = {};
+  let aiInsights = [];
   let aiGeneral = {};
   let aiVisualizations = [];
+  let aiAnalysisType = null;
+
   try {
     const axios = (await import("axios")).default;
     const response = await axios.post(
@@ -130,18 +135,19 @@ export const editAndRegenerateMessage = asyncHandler(async (req, res) => {
         question: content.trim(),
         chatHistory: chatHistory,
         vectorNamespaces: vectorNamespaces,
-        featureUsed: message.conversation.featureUsed,
+        featureUsed: featureMode,
       },
       {
-        timeout: 30000, // 30 second timeout
+        timeout: 30000,
       }
     );
-    aiContent = response.data.answer;
-    aiCitations = response.data.citations || [];
-    aiDocuments = response.data.documents || {};
-    aiInsights = response.data.insights || {};
-    aiGeneral = response.data.general || {};
-    aiVisualizations = response.data.visualizations || [];
+    aiResponse = response.data;
+    aiCitations = aiResponse.citations || [];
+    aiDocuments = aiResponse.documents || {};
+    aiInsights = aiResponse.insights || [];
+    aiGeneral = aiResponse.general || {};
+    aiVisualizations = aiResponse.visualizations || [];
+    aiAnalysisType = aiResponse.analysisType || null;
   } catch (error) {
     console.error("Error calling Python AI service:", error.message);
     throw new ApiError(
@@ -150,7 +156,23 @@ export const editAndRegenerateMessage = asyncHandler(async (req, res) => {
     );
   }
 
-  if (!aiContent || aiContent.trim() === "") {
+  // For enterprise modes store full payload as JSON content
+  let messageContent;
+  if (isEnterpriseMode) {
+    const fullPayload = {
+      answer: aiResponse.answer || '',
+      analysisType: aiAnalysisType,
+      documents: aiDocuments,
+      insights: aiInsights,
+      general: aiGeneral,
+      visualizations: aiVisualizations,
+    };
+    messageContent = JSON.stringify(fullPayload);
+  } else {
+    messageContent = aiResponse.answer || '';
+  }
+
+  if (!messageContent || messageContent.trim() === "") {
     throw new ApiError(500, "Received empty response from AI service");
   }
 
@@ -158,13 +180,14 @@ export const editAndRegenerateMessage = asyncHandler(async (req, res) => {
   const assistantMessage = await Message.create({
     conversation: message.conversation._id,
     role: "assistant",
-    content: aiContent,
-    featureUsed: message.conversation.featureUsed,
+    content: messageContent,
+    featureUsed: featureMode,
     citations: aiCitations,
     documentsData: aiDocuments,
     insightsData: aiInsights,
     generalData: aiGeneral,
     visualizationsData: aiVisualizations,
+    analysisType: aiAnalysisType,
   });
 
   return res

@@ -5,6 +5,7 @@ Simplified version with clear logic flow
 """
 
 from typing import List, Dict
+import json
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -18,6 +19,8 @@ from app.config.prompts import (
     GENERAL_CONVERSATION_PROMPT,
     AUDIT_SUMMARY_PROMPT,
     ENTERPRISE_PROMPTS,
+    ENTERPRISE_RESPONSE_INSTRUCTIONS,
+    ENTERPRISE_CHARTS_PROMPT,
 )
 from app.services.vector_store import vector_store
 import traceback
@@ -119,6 +122,80 @@ class RAGService:
         ])
         
         return formatted
+
+    def _clean_json_text(self, text: str) -> str:
+        if not isinstance(text, str):
+            return text
+        cleaned = text.strip()
+        if cleaned.startswith('```json'):
+            cleaned = cleaned[len('```json'):].strip()
+        if cleaned.startswith('```'):
+            cleaned = cleaned[3:].strip()
+        if cleaned.endswith('```'):
+            cleaned = cleaned[:-3].strip()
+        return cleaned
+
+    def _extract_json_segment(self, text: str):
+        if not isinstance(text, str):
+            return None
+
+        cleaned = text.strip()
+        braces = ['{', '[']
+        for start in range(len(cleaned)):
+            if cleaned[start] not in braces:
+                continue
+            segment = self._extract_balanced_segment(cleaned, start)
+            if not segment:
+                continue
+            try:
+                return json.loads(segment)
+            except Exception:
+                continue
+        return None
+
+    def _extract_balanced_segment(self, text: str, start_index: int):
+        open_char = text[start_index]
+        close_char = '}' if open_char == '{' else ']'
+        stack = []
+        in_string = False
+        escape = False
+
+        for i in range(start_index, len(text)):
+            char = text[i]
+            if escape:
+                escape = False
+                continue
+            if char == '\\':
+                escape = True
+                continue
+            if char == '"':
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if char == open_char:
+                stack.append(close_char)
+            elif char == close_char:
+                if not stack:
+                    return None
+                stack.pop()
+                if not stack:
+                    return text[start_index:i + 1]
+        return None
+
+    def _parse_json_output(self, raw_answer: str):
+        cleaned = self._clean_json_text(raw_answer)
+        try:
+            return json.loads(cleaned)
+        except Exception:
+            pass
+
+        # Try to extract a raw JSON object or array from the text
+        segment = self._extract_json_segment(cleaned)
+        if segment is not None:
+            return segment
+
+        return None
     
     def _expand_query(self, query: str) -> str:
         """
@@ -187,14 +264,39 @@ class RAGService:
 
         return results
     
+    def _extract_answer_from_raw(self, raw_text: str) -> str:
+        """
+        Last-resort extraction of just the 'answer' value from a raw JSON string
+        when full JSON parsing has failed. Uses regex to grab the answer field value.
+        Falls back to the raw text only if it doesn't look like JSON.
+        """
+        if not raw_text or not isinstance(raw_text, str):
+            return ""
+        stripped = raw_text.strip()
+        # Try regex: "answer": "...(escaped string)..."
+        import re
+        m = re.search(r'"answer"\s*:\s*"((?:[^"\\]|\\.)*)\"', stripped, re.DOTALL)
+        if m:
+            val = m.group(1)
+            # Unescape basic JSON escapes
+            val = val.replace('\\n', '\n').replace('\\t', '\t').replace('\\"', '"').replace('\\\\', '\\')
+            return val.strip()
+        # If raw text doesn't start with { it's plain text — return as-is
+        if not stripped.startswith('{'):
+            return stripped
+        # Whole thing is JSON we couldn't parse — return empty rather than dumping JSON
+        return ""
+
     def _run_rag_chain(
         self,
         prompt_template: str,
         variables: Dict,
-        relevant_docs: List[Document]
+        relevant_docs: List[Document],
+        strict_json: bool = False
     ) -> Dict:
         """Execute a RAG chain and return answer with citations."""
-        json_instruction = """
+        if strict_json:
+            json_instruction = """
 \n\nCRITICAL INSTRUCTION: You MUST format your entire response as a single valid JSON object. Do not wrap the JSON in Markdown block quotes, just return the raw JSON object.
 
 The JSON object must have exactly this structure:
@@ -234,9 +336,8 @@ The JSON object must have exactly this structure:
 
 If you do not have data for a specific field, leave it empty or null. But always return this exact JSON structure. Do NOT include markdown code blocks (```json) around your response, just the raw JSON text. Do NOT generate Python scripts, Plotly, or Matplotlib code. Only generate this JSON format.
 """
-        # Append instruction if not already present
-        if "CRITICAL INSTRUCTION: You MUST format your entire response as a single valid JSON object" not in prompt_template:
-            prompt_template += json_instruction
+            if "CRITICAL INSTRUCTION: You MUST format your entire response as a single valid JSON object" not in prompt_template:
+                prompt_template += json_instruction
 
         prompt = PromptTemplate.from_template(prompt_template)
         chain = prompt | self.llm | StrOutputParser()
@@ -247,31 +348,87 @@ If you do not have data for a specific field, leave it empty or null. But always
 
         print("[OK] Answer generated")
         
-        # Try to parse the answer as JSON
-        import json
-        try:
-            # Strip markdown block formatting if the LLM accidentally added it
-            cleaned = raw_answer.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-            parsed = json.loads(cleaned)
-            
+        def _normalize_insights(raw):
+            """Ensure insights is always a list of dicts."""
+            if isinstance(raw, list):
+                return raw
+            if isinstance(raw, dict):
+                # Some fields like executive_summary/key_findings are insight-like
+                items = []
+                if raw.get("key_findings"):
+                    for f in (raw["key_findings"] if isinstance(raw["key_findings"], list) else [raw["key_findings"]]):
+                        items.append({"title": "Key Finding", "description": str(f)})
+                if raw.get("executive_summary"):
+                    items.insert(0, {"title": "Executive Summary", "description": str(raw["executive_summary"])})
+                return items
+            return []
+
+        parsed = self._parse_json_output(raw_answer) if strict_json else None
+        if strict_json and isinstance(parsed, dict):
+            raw_answer_text = parsed.get("answer", "")
+            # If answer is empty or the LLM embedded the whole JSON inside answer, extract it
+            if not raw_answer_text or str(raw_answer_text).strip().startswith("{"):
+                # Try to parse nested JSON inside answer
+                nested = self._parse_json_output(str(raw_answer_text))
+                if isinstance(nested, dict) and nested.get("answer"):
+                    raw_answer_text = nested["answer"]
+                else:
+                    raw_answer_text = self._extract_answer_from_raw(raw_answer)
             return {
-                "answer": parsed.get("answer", raw_answer),
+                "analysisType": parsed.get("analysisType", variables.get("analysis_type")),
+                "answer": raw_answer_text,
                 "citations": citations,
                 "documents": parsed.get("documents", {}),
-                "insights": parsed.get("insights", {}),
+                "insights": _normalize_insights(parsed.get("insights", [])),
                 "general": parsed.get("general", {}),
-                "visualizations": parsed.get("visualizations", [])
+                "visualizations": parsed.get("visualizations", []),
+                "metadata": parsed.get("metadata", {}),
             }
-        except Exception:
-            print("[WARNING] LLM output was not valid JSON, falling back to raw string")
+
+        if strict_json:
+            print("[WARNING] Strict JSON mode failed to parse LLM output, falling back to raw string")
+            answer_only = self._extract_answer_from_raw(raw_answer)
             return {
-                "answer": raw_answer,
+                "analysisType": variables.get("analysis_type"),
+                "answer": answer_only,
                 "citations": citations,
                 "documents": {},
-                "insights": {},
+                "insights": [],
                 "general": {},
-                "visualizations": []
+                "visualizations": [],
+                "metadata": {},
             }
+
+        # Non-strict mode: return raw text and best-effort parsed sections
+        parsed = self._parse_json_output(raw_answer)
+        if isinstance(parsed, dict):
+            raw_answer_text = parsed.get("answer", "")
+            # If answer is empty, missing, or the LLM put the whole JSON back in answer
+            if not raw_answer_text or str(raw_answer_text).strip().startswith("{"):
+                raw_answer_text = raw_answer
+            return {
+                "answer": raw_answer_text,
+                "analysisType": parsed.get("analysisType", variables.get("analysis_type")),
+                "citations": citations,
+                "documents": parsed.get("documents", {}),
+                "insights": _normalize_insights(parsed.get("insights", [])),
+                "general": parsed.get("general", {}),
+                "visualizations": parsed.get("visualizations", []),
+                "metadata": parsed.get("metadata", {}),
+            }
+
+        # Parsing completely failed — extract just the answer field from raw text
+        # to avoid dumping the whole JSON payload into the chat
+        answer_only = self._extract_answer_from_raw(raw_answer)
+        return {
+            "answer": answer_only,
+            "citations": citations,
+            "documents": {},
+            "insights": [],
+            "general": {},
+            "visualizations": [],
+            "metadata": {},
+        }
     
     async def smart_chat(
         self,
@@ -501,17 +658,77 @@ If you do not have data for a specific field, leave it empty or null. But always
         context = self._format_documents(relevant_docs)
         prompt_template = ENTERPRISE_PROMPTS[analysis_type]
 
-        variables = {"context": context, "question": effective_question}
+        variables = {"context": context, "question": effective_question, "analysis_type": analysis_type}
         if analysis_type == "explain_mode":
             variables["chat_history"] = self._format_chat_history(chat_history)
 
-        result = self._run_rag_chain(prompt_template, variables, relevant_docs)
+        result = self._run_rag_chain(prompt_template, variables, relevant_docs, strict_json=True)
         result["metadata"] = {
             "analysisType": analysis_type,
             "documentsAnalyzed": len(namespaces),
             "chunksRetrieved": len(relevant_docs),
         }
+        result["analysisType"] = analysis_type
         return result
+
+    async def run_enterprise_charts(
+        self,
+        analysis_type: str,
+        namespaces: List[str],
+        question: str = "",
+        chat_history: List[Dict[str, str]] = None,
+    ) -> Dict:
+        """
+        Run enterprise chart extraction as a separate endpoint.
+        """
+        chat_history = chat_history or []
+        analysis_type = analysis_type.lower().strip()
+
+        if analysis_type not in ENTERPRISE_PROMPTS:
+            return {
+                "analysisType": analysis_type,
+                "visualizations": [],
+                "metadata": {"error": "invalid_analysis_type"},
+                "citations": [],
+            }
+
+        if not namespaces:
+            return {
+                "analysisType": analysis_type,
+                "visualizations": [],
+                "metadata": {"error": "no_documents"},
+                "citations": [],
+            }
+
+        effective_question = question.strip() or "Generate visualization payloads for this analysis."
+        relevant_docs = self._retrieve_context(effective_question, namespaces)
+
+        if not relevant_docs:
+            return {
+                "analysisType": analysis_type,
+                "visualizations": [],
+                "metadata": {"analysisType": analysis_type},
+                "citations": [],
+            }
+
+        context = self._format_documents(relevant_docs)
+        variables = {"context": context, "question": effective_question, "analysis_type": analysis_type}
+        if analysis_type == "explain_mode":
+            variables["chat_history"] = self._format_chat_history(chat_history)
+
+        result = self._run_rag_chain(ENTERPRISE_CHARTS_PROMPT, variables, relevant_docs, strict_json=True)
+        result["metadata"] = {
+            "analysisType": analysis_type,
+            "documentsAnalyzed": len(namespaces),
+            "chunksRetrieved": len(relevant_docs),
+        }
+        result["analysisType"] = analysis_type
+        return {
+            "analysisType": analysis_type,
+            "visualizations": result.get("visualizations", []),
+            "metadata": result.get("metadata", {}),
+            "citations": result.get("citations", []),
+        }
 
     async def get_answer(
         self,

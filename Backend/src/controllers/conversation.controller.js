@@ -13,6 +13,8 @@ import { FEATURE_MODES } from "../config/constants.js";
 import mongoose from "mongoose";
 import axios from "axios";
 
+const ENTERPRISE_FEATURE_MODES = new Set(['Document_Analysis', 'Analytical_Insights']);
+
 /**
  * Get all conversations
  * GET /api/v1/conversations
@@ -59,7 +61,7 @@ export const getConversationById = asyncHandler(async (req, res) => {
   // Get all messages in this conversation
   const messages = await Message.find({ conversation: conversationId })
     .sort({ createdAt: "asc" })
-    .select("role content citations createdAt documentsData insightsData generalData visualizationsData featureUsed");
+    .select("role content citations createdAt documentsData insightsData generalData visualizationsData featureUsed analysisType");
 
   return res
     .status(200)
@@ -145,12 +147,17 @@ export const sendChatMessage = asyncHandler(async (req, res) => {
     .map((doc) => doc.vectorNamespace);
 
   // Call Python AI service for response
-    let aiContent;
+  const featureMode = conversation.featureUsed || 'Smart_Chat';
+  const isEnterpriseMode = ENTERPRISE_FEATURE_MODES.has(featureMode);
+
+  let aiResponse = {};
   let aiCitations = [];
   let aiDocuments = {};
-  let aiInsights = {};
+  let aiInsights = [];
   let aiGeneral = {};
   let aiVisualizations = [];
+  let aiAnalysisType = null;
+
   try {
     const response = await axios.post(
       `${process.env.PYTHON_SERVICE_URL}/query`,
@@ -158,18 +165,19 @@ export const sendChatMessage = asyncHandler(async (req, res) => {
         question: content,
         chatHistory: chatHistory,
         vectorNamespaces: vectorNamespaces,
-        featureUsed: conversation.featureUsed,
+        featureUsed: featureMode,
       },
       {
-        timeout: 30000, // 30 second timeout
+        timeout: 30000,
       }
     );
-    aiContent = response.data.answer;
-    aiCitations = response.data.citations || [];
-    aiDocuments = response.data.documents || {};
-    aiInsights = response.data.insights || {};
-    aiGeneral = response.data.general || {};
-    aiVisualizations = response.data.visualizations || [];
+    aiResponse = response.data;
+    aiCitations = aiResponse.citations || [];
+    aiDocuments = aiResponse.documents || {};
+    aiInsights = aiResponse.insights || [];
+    aiGeneral = aiResponse.general || {};
+    aiVisualizations = aiResponse.visualizations || [];
+    aiAnalysisType = aiResponse.analysisType || null;
   } catch (error) {
     console.error("Error calling Python AI service:", error.message);
     throw new ApiError(
@@ -178,7 +186,23 @@ export const sendChatMessage = asyncHandler(async (req, res) => {
     );
   }
 
-  if (!aiContent || aiContent.trim() === "") {
+  // For enterprise modes: store the full structured payload as JSON content
+  let messageContent;
+  if (isEnterpriseMode) {
+    const fullPayload = {
+      answer: aiResponse.answer || '',
+      analysisType: aiAnalysisType,
+      documents: aiDocuments,
+      insights: aiInsights,
+      general: aiGeneral,
+      visualizations: aiVisualizations,
+    };
+    messageContent = JSON.stringify(fullPayload);
+  } else {
+    messageContent = aiResponse.answer || '';
+  }
+
+  if (!messageContent || messageContent.trim() === "" || messageContent === "{}") {
     throw new ApiError(500, "Received empty response from AI service");
   }
 
@@ -186,13 +210,14 @@ export const sendChatMessage = asyncHandler(async (req, res) => {
   const assistantMessage = await Message.create({
     conversation: conversationId,
     role: "assistant",
-    content: aiContent,
-    featureUsed: conversation.featureUsed,
+    content: messageContent,
+    featureUsed: featureMode,
     citations: aiCitations || [],
     documentsData: aiDocuments,
     insightsData: aiInsights,
     generalData: aiGeneral,
     visualizationsData: aiVisualizations,
+    analysisType: aiAnalysisType,
   });
 
   return res

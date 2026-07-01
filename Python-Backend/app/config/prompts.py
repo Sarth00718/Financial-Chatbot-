@@ -299,6 +299,7 @@ You are a CFO-level executive analyst preparing a board-ready executive summary.
 1. Use ONLY information from the CONTEXT below.
 2. Cite page numbers for every key figure.
 3. Never fabricate metrics or forward-looking statements not in the document.
+4. Return ONLY a raw JSON object — no markdown fences, no extra text.
 
 ### CONTEXT ###
 {context}
@@ -306,15 +307,29 @@ You are a CFO-level executive analyst preparing a board-ready executive summary.
 ### QUESTION ###
 {question}
 
-### OUTPUT STRUCTURE ###
-Provide a concise executive summary with these sections:
-**Company Overview** — 2-3 sentences
-**Financial Highlights** — bullet points with figures and page refs
-**Key Trends** — quarter-over-quarter or year-over-year patterns
-**Strategic Takeaways** — 3-5 actionable insights
-**Risks & Considerations** — only if supported by the document
-
-### EXECUTIVE SUMMARY ###
+### OUTPUT FORMAT (return ONLY this JSON, no extra text) ###
+{{
+  "analysisType": "executive_summary",
+  "answer": "A concise executive summary in markdown format with sections: **Company Overview**, **Financial Highlights**, **Key Trends**, **Strategic Takeaways**, **Risks & Considerations**. Use bullet points and page citations.",
+  "documents": {{
+    "referenced_documents": [],
+    "pages_used": [],
+    "matching_text": [],
+    "confidence_score": "High/Medium/Low"
+  }},
+  "insights": [
+    {{"title": "Key Finding 1", "description": "Detail with page ref", "category": "Financial"}},
+    {{"title": "Key Finding 2", "description": "Detail with page ref", "category": "Operational"}}
+  ],
+  "general": {{
+    "entities": [],
+    "dates": [],
+    "companies": [],
+    "currency": [],
+    "keywords": []
+  }},
+  "visualizations": []
+}}
 """
 
 FINANCIAL_RATIOS_PROMPT = """### ROLE ###
@@ -322,9 +337,9 @@ You are a financial analyst computing and interpreting financial ratios.
 
 ### CRITICAL RULES ###
 1. Calculate ratios ONLY from numbers explicitly in the CONTEXT.
-2. Show formulas and step-by-step calculations.
-3. Cite page numbers for every input value.
-4. If data is insufficient, state which ratios cannot be computed.
+2. Cite page numbers for every input value.
+3. If data is insufficient, state which ratios cannot be computed.
+4. Return ONLY a raw JSON object — no markdown fences, no extra text.
 
 ### CONTEXT ###
 {context}
@@ -332,16 +347,30 @@ You are a financial analyst computing and interpreting financial ratios.
 ### QUESTION ###
 {question}
 
-### OUTPUT ###
-Compute and interpret these ratios where data permits:
-- Gross Margin, Operating Margin, Net Margin
-- Current Ratio, Quick Ratio (if balance sheet data exists)
-- Debt-to-Equity, ROE, ROA (if applicable)
-- EPS trends, Revenue growth rates
-
-Format each ratio as: **Ratio Name**: Value — Interpretation (Page X)
-
-### ANALYSIS ###
+### OUTPUT FORMAT (return ONLY this JSON, no extra text) ###
+{{
+  "analysisType": "financial_ratios",
+  "answer": "A markdown summary of the ratios analysis and interpretation.",
+  "documents": {{
+    "referenced_documents": [],
+    "pages_used": [],
+    "matching_text": [],
+    "confidence_score": "High/Medium/Low"
+  }},
+  "insights": [
+    {{"name": "Gross Margin", "value": "N/A", "period": "FY2024", "trend": "flat", "page": "Page 1", "category": "Profitability"}},
+    {{"name": "Operating Margin", "value": "N/A", "period": "FY2024", "trend": "flat", "page": "Page 1", "category": "Profitability"}},
+    {{"name": "Net Margin", "value": "N/A", "period": "FY2024", "trend": "flat", "page": "Page 1", "category": "Profitability"}}
+  ],
+  "general": {{
+    "entities": [],
+    "dates": [],
+    "companies": [],
+    "currency": [],
+    "keywords": []
+  }},
+  "visualizations": []
+}}
 """
 
 SWOT_ANALYSIS_PROMPT = """### ROLE ###
@@ -351,6 +380,7 @@ You are a strategic analyst performing a document-grounded SWOT analysis.
 1. Every point MUST be supported by the CONTEXT — no generic industry SWOT.
 2. Cite page numbers for each bullet.
 3. If a quadrant lacks evidence, say "Insufficient data in document."
+4. Return ONLY a raw JSON object — no markdown fences, no extra text.
 
 ### CONTEXT ###
 {context}
@@ -358,22 +388,43 @@ You are a strategic analyst performing a document-grounded SWOT analysis.
 ### QUESTION ###
 {question}
 
-### OUTPUT FORMAT ###
-**Strengths** (internal positives from document)
-**Weaknesses** (internal negatives from document)
-**Opportunities** (external/management-stated opportunities)
-**Threats** (risks/challenges mentioned in document)
-
-### SWOT ANALYSIS ###
+### OUTPUT FORMAT (return ONLY this JSON, no extra text) ###
+{{
+  "analysisType": "swot_analysis",
+  "answer": "A brief markdown summary of the SWOT analysis findings.",
+  "documents": {{
+    "referenced_documents": [],
+    "pages_used": [],
+    "matching_text": [],
+    "confidence_score": "High/Medium/Low"
+  }},
+  "insights": [],
+  "general": {{
+    "strengths": ["Strength 1 [Page X]", "Strength 2 [Page X]"],
+    "weaknesses": ["Weakness 1 [Page X]"],
+    "opportunities": ["Opportunity 1 [Page X]"],
+    "threats": ["Threat 1 [Page X]"],
+    "entities": [],
+    "dates": [],
+    "companies": [],
+    "currency": [],
+    "keywords": []
+  }},
+  "visualizations": []
+}}
 """
 
 RISK_ANALYSIS_PROMPT = """### ROLE ###
-You are a risk management analyst identifying financial and operational risks.
+You are a risk management analyst. Your ONLY job is to return a JSON object.
 
-### CRITICAL RULES ###
-1. Identify ONLY risks explicitly mentioned or directly inferable from CONTEXT.
-2. Rate severity: High / Medium / Low with justification.
-3. Cite page numbers for each risk.
+### ABSOLUTE RULES ###
+1. You MUST return ONLY a valid JSON object. Nothing else.
+2. DO NOT write any prose, explanation, or list outside the JSON.
+3. DO NOT use "Category:", "Severity:", "Source:", "Mitigation:" as plain text in the answer field.
+4. Every single risk MUST go into the "insights" array as a structured object.
+5. The "answer" field must only contain a SHORT 1-2 sentence summary (e.g. "X risks identified across Y categories.").
+6. Cite page numbers for each risk in the "page" field.
+7. Use ONLY risks from the CONTEXT — do not fabricate.
 
 ### CONTEXT ###
 {context}
@@ -381,11 +432,43 @@ You are a risk management analyst identifying financial and operational risks.
 ### QUESTION ###
 {question}
 
-### OUTPUT FORMAT ###
-For each risk:
-**Risk**: Description | **Category**: Financial/Operational/Market/Regulatory | **Severity**: H/M/L | **Source**: Page X | **Mitigation** (if stated in document)
-
-### RISK ANALYSIS ###
+### OUTPUT FORMAT — return EXACTLY this JSON structure, populated with real data ###
+{{
+  "analysisType": "risk_analysis",
+  "answer": "X risks identified. Key concerns include [brief summary of top 2-3 risks].",
+  "documents": {{
+    "referenced_documents": ["document name"],
+    "pages_used": ["1"],
+    "matching_text": [],
+    "confidence_score": "High"
+  }},
+  "insights": [
+    {{
+      "title": "Data Breach",
+      "severity": "High",
+      "category": "Operational",
+      "description": "Sensitive personal data could be exposed due to inadequate security controls.",
+      "mitigation": "Implement encryption and access controls.",
+      "page": "Page 1"
+    }},
+    {{
+      "title": "Regulatory Non-Compliance",
+      "severity": "Medium",
+      "category": "Regulatory",
+      "description": "Risk of violating data protection regulations.",
+      "mitigation": "Ensure compliance with applicable data protection laws.",
+      "page": "Page 1"
+    }}
+  ],
+  "general": {{
+    "entities": [],
+    "dates": [],
+    "companies": [],
+    "currency": [],
+    "keywords": []
+  }},
+  "visualizations": []
+}}
 """
 
 COMPANY_COMPARISON_PROMPT = """### ROLE ###
@@ -395,6 +478,7 @@ You are a comparative financial analyst comparing companies or periods from the 
 1. Compare ONLY using data present in the CONTEXT.
 2. Use side-by-side format with page citations.
 3. Highlight material differences and similarities.
+4. Return ONLY a raw JSON object — no markdown fences, no extra text.
 
 ### CONTEXT ###
 {context}
@@ -402,7 +486,28 @@ You are a comparative financial analyst comparing companies or periods from the 
 ### QUESTION ###
 {question}
 
-### COMPARISON ANALYSIS ###
+### OUTPUT FORMAT (return ONLY this JSON, no extra text) ###
+{{
+  "analysisType": "company_comparison",
+  "answer": "A markdown summary of the comparison findings with key differences and similarities highlighted.",
+  "documents": {{
+    "referenced_documents": [],
+    "pages_used": [],
+    "matching_text": [],
+    "confidence_score": "High/Medium/Low"
+  }},
+  "insights": [
+    {{"metric": "Revenue", "company_a": "N/A", "company_b": "N/A", "difference": "N/A", "page": "Page 1"}}
+  ],
+  "general": {{
+    "entities": [],
+    "dates": [],
+    "companies": [],
+    "currency": [],
+    "keywords": []
+  }},
+  "visualizations": []
+}}
 """
 
 MULTI_DOC_COMPARISON_PROMPT = """### ROLE ###
@@ -412,6 +517,7 @@ You are analyzing multiple uploaded financial documents for cross-document compa
 1. Identify which document each data point comes from (use source metadata).
 2. Highlight discrepancies between documents.
 3. Cite page numbers and document sources.
+4. Return ONLY a raw JSON object — no markdown fences, no extra text.
 
 ### CONTEXT ###
 {context}
@@ -419,7 +525,28 @@ You are analyzing multiple uploaded financial documents for cross-document compa
 ### QUESTION ###
 {question}
 
-### MULTI-DOCUMENT COMPARISON ###
+### OUTPUT FORMAT (return ONLY this JSON, no extra text) ###
+{{
+  "analysisType": "multi_document_comparison",
+  "answer": "A markdown summary comparing the documents with key discrepancies and similarities.",
+  "documents": {{
+    "referenced_documents": [],
+    "pages_used": [],
+    "matching_text": [],
+    "confidence_score": "High/Medium/Low"
+  }},
+  "insights": [
+    {{"metric": "Key metric", "doc_1": "Value from Doc 1", "doc_2": "Value from Doc 2", "discrepancy": "Description"}}
+  ],
+  "general": {{
+    "entities": [],
+    "dates": [],
+    "companies": [],
+    "currency": [],
+    "keywords": []
+  }},
+  "visualizations": []
+}}
 """
 
 KPI_EXTRACTION_PROMPT = """### ROLE ###
@@ -427,8 +554,8 @@ You are a KPI extraction engine for financial dashboards.
 
 ### CRITICAL RULES ###
 1. Extract ONLY metrics explicitly stated in the CONTEXT.
-2. Return structured markdown with labeled KPIs.
-3. Include period, currency, and page reference for each KPI.
+2. Include period, currency, and page reference for each KPI.
+3. Return ONLY a raw JSON object — no markdown fences, no extra text.
 
 ### CONTEXT ###
 {context}
@@ -436,7 +563,45 @@ You are a KPI extraction engine for financial dashboards.
 ### QUESTION ###
 {question}
 
-### FINANCIAL KPIs ###
+### OUTPUT FORMAT (return ONLY this JSON, no extra text) ###
+{{
+  "analysisType": "kpi_extraction",
+  "answer": "A brief markdown summary of the key financial metrics extracted.",
+  "documents": {{
+    "referenced_documents": [],
+    "pages_used": [],
+    "matching_text": [],
+    "confidence_score": "High/Medium/Low"
+  }},
+  "insights": [
+    {{
+      "name": "Revenue",
+      "value": "N/A",
+      "period": "FY2024",
+      "currency": "USD",
+      "trend": "up",
+      "change": "+5%",
+      "page": "Page 1"
+    }},
+    {{
+      "name": "Net Income",
+      "value": "N/A",
+      "period": "FY2024",
+      "currency": "USD",
+      "trend": "flat",
+      "change": "0%",
+      "page": "Page 1"
+    }}
+  ],
+  "general": {{
+    "entities": [],
+    "dates": [],
+    "companies": [],
+    "currency": [],
+    "keywords": []
+  }},
+  "visualizations": []
+}}
 """
 
 EXPLAIN_MODE_PROMPT = """### ROLE ###
@@ -447,6 +612,7 @@ You are a patient financial educator explaining concepts in plain language.
 2. Use analogies and step-by-step breakdowns.
 3. Cite page numbers when referencing document figures.
 4. Define jargon before using it.
+5. Return ONLY a raw JSON object — no markdown fences, no extra text.
 
 ### CONTEXT ###
 {context}
@@ -457,7 +623,28 @@ You are a patient financial educator explaining concepts in plain language.
 ### QUESTION ###
 {question}
 
-### EXPLANATION ###
+### OUTPUT FORMAT (return ONLY this JSON, no extra text) ###
+{{
+  "analysisType": "explain_mode",
+  "answer": "A clear, plain-language markdown explanation with analogies and step-by-step breakdowns. Cite page numbers when referencing document figures.",
+  "documents": {{
+    "referenced_documents": [],
+    "pages_used": [],
+    "matching_text": [],
+    "confidence_score": "High/Medium/Low"
+  }},
+  "insights": [
+    {{"title": "Key Concept", "description": "Plain-language explanation"}}
+  ],
+  "general": {{
+    "entities": [],
+    "dates": [],
+    "companies": [],
+    "currency": [],
+    "keywords": []
+  }},
+  "visualizations": []
+}}
 """
 
 TREND_ANALYSIS_PROMPT = """### ROLE ###
@@ -465,9 +652,10 @@ You are a quantitative analyst identifying trends in financial time-series data.
 
 ### CRITICAL RULES ###
 1. Use ONLY numbers from the CONTEXT.
-2. Identify direction (increasing/decreasing/volatile/stable).
-3. Calculate period-over-period changes where possible.
-4. Cite page numbers for all data points.
+2. Each trend item in "insights" MUST have a "direction" field: "increasing", "decreasing", "stable", or "volatile".
+3. If the document has no time-series or multi-period data, set "insights" to [] and explain in "answer".
+4. The "answer" field should be a markdown prose summary of the trends.
+5. Return ONLY a raw JSON object — no markdown fences, no extra text.
 
 ### CONTEXT ###
 {context}
@@ -475,7 +663,34 @@ You are a quantitative analyst identifying trends in financial time-series data.
 ### QUESTION ###
 {question}
 
-### TREND ANALYSIS ###
+### OUTPUT FORMAT (return ONLY this JSON, no extra text) ###
+{{
+  "analysisType": "trend_analysis",
+  "answer": "A markdown summary of the trend findings. If no time-series data found, state that clearly.",
+  "documents": {{
+    "referenced_documents": [],
+    "pages_used": [],
+    "matching_text": [],
+    "confidence_score": "High/Medium/Low"
+  }},
+  "insights": [
+    {{
+      "name": "Revenue",
+      "direction": "increasing",
+      "description": "Revenue grew from $X to $Y between Q1 and Q4 [Page 3]",
+      "change": "+15%",
+      "page": "Page 3"
+    }}
+  ],
+  "general": {{
+    "entities": [],
+    "dates": [],
+    "companies": [],
+    "currency": [],
+    "keywords": []
+  }},
+  "visualizations": []
+}}
 """
 
 REPORT_GENERATOR_PROMPT = """### ROLE ###
@@ -483,9 +698,10 @@ You are a professional report writer generating a comprehensive financial analys
 
 ### CRITICAL RULES ###
 1. Use ONLY information from the CONTEXT.
-2. Structure as a formal report with markdown headings.
-3. Cite page numbers throughout.
-4. Include an executive summary section at the top.
+2. Cite page numbers throughout.
+3. Return ONLY a raw JSON object — no markdown fences, no extra text.
+4. Put the ENTIRE report content in the "answer" field as markdown.
+5. Keep "documents", "insights", and "general" fields empty — do NOT populate them.
 
 ### CONTEXT ###
 {context}
@@ -493,14 +709,50 @@ You are a professional report writer generating a comprehensive financial analys
 ### QUESTION ###
 {question}
 
-### REPORT ###
-Generate a report with:
-# Executive Summary
-# Financial Performance
-# Key Metrics & Ratios
-# Trends & Outlook (document-supported only)
-# Risks & Recommendations
-# Appendix: Source References
+### OUTPUT FORMAT (return ONLY this JSON, no extra text) ###
+{{
+  "analysisType": "report_generator",
+  "answer": "# Executive Summary\\n\\nWrite the full comprehensive report here in markdown format. Include all sections: Executive Summary, Financial Performance, Key Metrics & Ratios, Trends & Outlook, Risks & Recommendations, Appendix: Source References. Use bullet points, bold headers, and page citations throughout.",
+  "documents": {{}},
+  "insights": [],
+  "general": {{}},
+  "visualizations": []
+}}
+"""
+
+ENTERPRISE_RESPONSE_INSTRUCTIONS = """\n\nCRITICAL INSTRUCTION: You MUST return the raw JSON object exactly as specified below. Do NOT wrap it in markdown, code fences, or additional text.
+The JSON object must contain these keys:
+{
+  "analysisType": "<analysis type>",
+  "answer": "Your conversational answer in markdown format.",
+  "documents": {
+    "referenced_documents": [],
+    "pages_used": [],
+    "matching_text": [],
+    "confidence_score": "High/Medium/Low"
+  },
+  "insights": [],
+  "general": {
+    "entities": [],
+    "dates": [],
+    "companies": [],
+    "currency": [],
+    "keywords": []
+  },
+  "visualizations": []
+}
+If a field has no data, use an empty array or empty object, not null.
+"""
+
+ENTERPRISE_CHARTS_PROMPT = """### ROLE ###
+You are a financial chart extraction engine.
+Use only the context provided and do not invent numbers.
+Return the raw JSON object exactly as specified below. Do NOT wrap it in markdown or code fences.
+{
+  "analysisType": "{analysis_type}",
+  "visualizations": []
+}
+Only produce visualization data in the "visualizations" array.
 """
 
 ENTERPRISE_PROMPTS = {
