@@ -1,8 +1,3 @@
-/**
- * MUI Theme Provider
- * Syncs MUI theme with existing ThemeContext (light/dark)
- */
-
 import { useMemo } from 'react';
 import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';

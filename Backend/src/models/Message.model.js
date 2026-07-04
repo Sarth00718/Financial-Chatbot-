@@ -46,7 +46,7 @@ const messageSchema = new mongoose.Schema(
     // Feature mode used when the message was created
     featureUsed: {
       type: String,
-      enum: Object.values(FEATURE_MODES),
+      enum: [...Object.values(FEATURE_MODES), null],
       default: null,
       index: true,
     },

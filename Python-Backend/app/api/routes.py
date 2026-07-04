@@ -109,9 +109,10 @@ async def query_documents(request: QueryRequest):
             answer=result.get("answer", ""),
             citations=result.get("citations", []),
             documents=result.get("documents", {}),
-            insights=result.get("insights", {}),
+            insights=result.get("insights", []),
             general=result.get("general", {}),
-            visualizations=result.get("visualizations", [])
+            visualizations=result.get("visualizations", []),
+            analysisType=result.get("analysisType", None),
         )
         
     except HTTPException:

@@ -30,8 +30,11 @@ export const uploadDocuments = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid conversation ID");
   }
 
-  // Verify conversation exists
-  const conversation = await Conversation.findById(conversationId);
+  // Verify conversation exists and belongs to user
+  const conversation = await Conversation.findOne({
+    _id: conversationId,
+    user: req.user._id,
+  });
 
   if (!conversation) {
     throw new ApiError(404, "Conversation not found");
@@ -182,8 +185,11 @@ export const getConversationDocuments = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid conversation ID");
   }
 
-  // Verify conversation exists
-  const conversation = await Conversation.findById(conversationId);
+  // Verify conversation exists and belongs to user
+  const conversation = await Conversation.findOne({
+    _id: conversationId,
+    user: req.user._id,
+  });
 
   if (!conversation) {
     throw new ApiError(404, "Conversation not found");
@@ -213,11 +219,18 @@ export const deleteDocument = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid document ID");
   }
 
-  // Find document
-  const document = await Document.findById(documentId);
+  // Find document and verify ownership through conversation
+  const document = await Document.findById(documentId).populate({
+    path: "conversation",
+    select: "user documents",
+  });
 
   if (!document) {
     throw new ApiError(404, "Document not found");
+  }
+
+  if (document.conversation.user.toString() !== req.user._id.toString()) {
+    throw new ApiError(403, "You can only delete documents from your own conversations");
   }
 
   // Notify Python service to delete vectors (fire-and-forget)
@@ -234,7 +247,7 @@ export const deleteDocument = asyncHandler(async (req, res) => {
   await Document.findByIdAndDelete(documentId);
 
   // Remove document reference from conversation
-  await Conversation.findByIdAndUpdate(document.conversation, {
+  await Conversation.findByIdAndUpdate(document.conversation._id, {
     $pull: { documents: documentId },
   });
 

@@ -37,7 +37,8 @@ class RAGService:
         self.llm = ChatOpenAI(
             model=settings.LLM_MODEL,
             temperature=settings.LLM_TEMPERATURE,
-            max_tokens=2000,  # Limit response length to save credits
+            max_tokens=4000,  # Increased to prevent JSON truncation mid-response
+            timeout=settings.LLM_TIMEOUT,
             openai_api_key=settings.GROQ_API_KEY,
             openai_api_base="https://api.groq.com/openai/v1",
         )
@@ -47,12 +48,29 @@ class RAGService:
         Format retrieved documents into a single context string.
         Includes page type metadata so the LLM knows whether content
         came from plain text, OCR, vision description, or table extraction.
+        Filters out chunks that contain error/debug messages from processing.
         """
         if not docs:
             return "No relevant context was found in the uploaded documents."
 
+        _error_patterns = [
+            "does not support image input",
+            "vision model not available",
+            "vision model unavailable",
+            "image could not be processed",
+            "cannot read",
+            "[VISION]", "[WARNING]", "[ERROR]",
+        ]
+        import re as _re
+        _error_re = _re.compile("|".join(_error_patterns), _re.IGNORECASE)
+
         parts = []
         for doc in docs:
+            content = (doc.page_content or "").strip()
+            # Skip chunks that are only error/debug noise
+            if len(content) < 20 and _error_re.search(content):
+                continue
+
             meta  = doc.metadata or {}
             page  = meta.get("page", "N/A")
             dtype = meta.get("type", "text")     # text / image / scanned_page
@@ -63,13 +81,15 @@ class RAGService:
                 header = f"[Page {page} — Chart/Image Description]"
             elif dtype == "scanned_page":
                 header = f"[Page {page} — Scanned Page (Vision-extracted)]"
-            elif "table" in src.lower() or "[TABLE" in doc.page_content:
+            elif "table" in src.lower() or "[TABLE" in content:
                 header = f"[Page {page} — Table Extraction]"
             else:
                 header = f"[Page {page}]"
 
-            parts.append(f"{header}\n{doc.page_content}")
+            parts.append(f"{header}\n{content}")
 
+        if not parts:
+            return "No relevant context was found in the uploaded documents."
         return "\n\n---\n\n".join(parts)
 
     def _build_citations(self, docs: List[Document]) -> List[Dict]:
@@ -267,25 +287,109 @@ class RAGService:
     def _extract_answer_from_raw(self, raw_text: str) -> str:
         """
         Last-resort extraction of just the 'answer' value from a raw JSON string
-        when full JSON parsing has failed. Uses regex to grab the answer field value.
+        when full JSON parsing has failed. Uses a state-machine to grab the
+        answer field value, correctly handling nested quotes or JSON inside it.
         Falls back to the raw text only if it doesn't look like JSON.
         """
         if not raw_text or not isinstance(raw_text, str):
             return ""
         stripped = raw_text.strip()
-        # Try regex: "answer": "...(escaped string)..."
-        import re
-        m = re.search(r'"answer"\s*:\s*"((?:[^"\\]|\\.)*)\"', stripped, re.DOTALL)
-        if m:
-            val = m.group(1)
-            # Unescape basic JSON escapes
-            val = val.replace('\\n', '\n').replace('\\t', '\t').replace('\\"', '"').replace('\\\\', '\\')
-            return val.strip()
+        # Find start of answer value
+        ans_key = '"answer":'
+        idx = stripped.find(ans_key)
+        if idx != -1:
+            after_colon = stripped.find('"', idx + len(ans_key))
+            if after_colon != -1:
+                i = after_colon + 1
+                escaped = False
+                while i < len(stripped):
+                    ch = stripped[i]
+                    if escaped:
+                        escaped = False
+                        i += 1
+                        continue
+                    if ch == '\\':
+                        escaped = True
+                        i += 1
+                        continue
+                    if ch == '"':
+                        break
+                    i += 1
+                raw = stripped[after_colon + 1:i]
+                raw = raw.replace('\\n', '\n').replace('\\t', '\t').replace('\\"', '"').replace('\\\\', '\\')
+                return raw.strip()
         # If raw text doesn't start with { it's plain text — return as-is
         if not stripped.startswith('{'):
             return stripped
-        # Whole thing is JSON we couldn't parse — return empty rather than dumping JSON
         return ""
+
+    def _clean_answer_text(self, text: str) -> str:
+        """
+        Remove raw JSON fragments that leaked into the answer text.
+        Handles truncation artifacts like:
+          ', "insights": , "general": , "visualizations": ['
+          '}, ] }'
+        """
+        if not text or not isinstance(text, str):
+            return text or ""
+        import re
+        # Remove orphaned JSON key fragments at start of string
+        text = re.sub(
+            r'^[\s,]*"(?:insights|general|visualizations|documents|metadata|citations|analysisType)"\s*:\s*',
+            '', text
+        )
+        # Remove trailing dangling JSON closing brackets/braces
+        text = re.sub(r'[\s,]*[\}\]]+\s*$', '', text)
+        # Remove standalone comma+brace lines like ", }" or "  ]  }"
+        text = re.sub(r'\n[\s,]*[\}\]]+', '', text)
+        return text.strip()
+
+    def _filter_real_visualizations(self, vizs) -> list:
+        """
+        Filter out hallucinated/placeholder visualizations.
+        Keeps only charts where:
+        - xAxis has real labels (not generic 'Year', 'Item 1..4', 'label1', 'label2')
+        - Series data contains more than placeholder sequential integers
+        """
+        if not isinstance(vizs, list):
+            return []
+        import re
+        placeholder_pattern = re.compile(
+            r'^(year|item\s*\d+|label\d*|value|series|data|category\s*\d*)$',
+            re.IGNORECASE
+        )
+        real = []
+        for v in vizs:
+            if not isinstance(v, dict):
+                continue
+            xaxis = v.get('xAxis', [])
+            if not xaxis:
+                continue
+            # Reject if all xAxis labels are generic placeholders
+            non_placeholder = [
+                x for x in xaxis
+                if not placeholder_pattern.match(str(x).strip())
+            ]
+            if not non_placeholder:
+                continue
+            series = v.get('series', [])
+            if not series:
+                continue
+            # Gather all data points
+            all_data = []
+            for s in series:
+                all_data.extend(s.get('data', []))
+            if not all_data:
+                continue
+            # Reject pure sequential integer placeholders [0,1,2,3,4]
+            try:
+                numeric = [float(d) for d in all_data]
+                if numeric == list(range(len(numeric))):
+                    continue
+            except (TypeError, ValueError):
+                pass
+            real.append(v)
+        return real
 
     def _run_rag_chain(
         self,
@@ -297,11 +401,15 @@ class RAGService:
         """Execute a RAG chain and return answer with citations."""
         if strict_json:
             json_instruction = """
-\n\nCRITICAL INSTRUCTION: You MUST format your entire response as a single valid JSON object. Do not wrap the JSON in Markdown block quotes, just return the raw JSON object.
+
+
+CRITICAL INSTRUCTION: You MUST format your entire response as a single valid JSON object. Do not wrap the JSON in Markdown block quotes, just return the raw JSON object.
+
+ABSOLUTELY FORBIDDEN: The "answer" field MUST contain ONLY plain markdown text and natural language. Never include raw JSON syntax inside the answer field. Put all chart/visualization data exclusively in the separate "visualizations" array. Use markdown tables for tabular data.
 
 The JSON object must have exactly this structure:
 {{
-  "answer": "Your detailed answer in markdown format. For charts, provide explanations here, but put the chart data in the visualization field.",
+  "answer": "Your detailed answer in markdown format.",
   "documents": {{
     "referenced_documents": [],
     "pages_used": [],
@@ -334,7 +442,11 @@ The JSON object must have exactly this structure:
   ]
 }}
 
-If you do not have data for a specific field, leave it empty or null. But always return this exact JSON structure. Do NOT include markdown code blocks (```json) around your response, just the raw JSON text. Do NOT generate Python scripts, Plotly, or Matplotlib code. Only generate this JSON format.
+If you do not have data for a specific field, leave it empty or null. But always return this exact JSON structure. Do NOT include markdown code blocks around your response, just the raw JSON text. Do NOT generate Python scripts, Plotly, or Matplotlib code. Only generate this JSON format.
+
+VISUALIZATION RULE: ONLY populate visualizations if the document contains ACTUAL explicit numerical data (specific figures, percentages, or counts stated verbatim in the document). Do NOT invent or estimate numbers. If no chartable data exists, set visualizations to [].
+
+CRITICAL: You are a document-grounded AI. Your ONLY knowledge source is the document context provided. If you cannot find the answer, set "answer" to "I searched the uploaded document but couldn't find information about that topic."
 """
             if "CRITICAL INSTRUCTION: You MUST format your entire response as a single valid JSON object" not in prompt_template:
                 prompt_template += json_instruction
@@ -368,12 +480,16 @@ If you do not have data for a specific field, leave it empty or null. But always
             raw_answer_text = parsed.get("answer", "")
             # If answer is empty or the LLM embedded the whole JSON inside answer, extract it
             if not raw_answer_text or str(raw_answer_text).strip().startswith("{"):
-                # Try to parse nested JSON inside answer
                 nested = self._parse_json_output(str(raw_answer_text))
                 if isinstance(nested, dict) and nested.get("answer"):
                     raw_answer_text = nested["answer"]
                 else:
                     raw_answer_text = self._extract_answer_from_raw(raw_answer)
+            # Final safety: if still empty, use a clean extraction from raw
+            if not raw_answer_text or not raw_answer_text.strip():
+                raw_answer_text = self._extract_answer_from_raw(raw_answer)
+            # Scrub any JSON fragment that leaked into answer
+            raw_answer_text = self._clean_answer_text(raw_answer_text)
             return {
                 "analysisType": parsed.get("analysisType", variables.get("analysis_type")),
                 "answer": raw_answer_text,
@@ -381,7 +497,7 @@ If you do not have data for a specific field, leave it empty or null. But always
                 "documents": parsed.get("documents", {}),
                 "insights": _normalize_insights(parsed.get("insights", [])),
                 "general": parsed.get("general", {}),
-                "visualizations": parsed.get("visualizations", []),
+                "visualizations": self._filter_real_visualizations(parsed.get("visualizations", [])),
                 "metadata": parsed.get("metadata", {}),
             }
 
@@ -405,7 +521,10 @@ If you do not have data for a specific field, leave it empty or null. But always
             raw_answer_text = parsed.get("answer", "")
             # If answer is empty, missing, or the LLM put the whole JSON back in answer
             if not raw_answer_text or str(raw_answer_text).strip().startswith("{"):
+                raw_answer_text = self._extract_answer_from_raw(raw_answer)
+            if not raw_answer_text or not raw_answer_text.strip():
                 raw_answer_text = raw_answer
+            raw_answer_text = self._clean_answer_text(raw_answer_text)
             return {
                 "answer": raw_answer_text,
                 "analysisType": parsed.get("analysisType", variables.get("analysis_type")),
@@ -413,7 +532,7 @@ If you do not have data for a specific field, leave it empty or null. But always
                 "documents": parsed.get("documents", {}),
                 "insights": _normalize_insights(parsed.get("insights", [])),
                 "general": parsed.get("general", {}),
-                "visualizations": parsed.get("visualizations", []),
+                "visualizations": self._filter_real_visualizations(parsed.get("visualizations", [])),
                 "metadata": parsed.get("metadata", {}),
             }
 
@@ -568,13 +687,20 @@ If you do not have data for a specific field, leave it empty or null. But always
         
         import json
         try:
-            cleaned = raw_answer.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+            cleaned = raw_answer.strip()
+            if cleaned.startswith("```json"):
+                cleaned = cleaned[7:]
+            elif cleaned.startswith("```"):
+                cleaned = cleaned[3:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
             parsed = json.loads(cleaned)
             return {
                 "answer": parsed.get("answer", raw_answer),
                 "citations": [],
                 "documents": parsed.get("documents", {}),
-                "insights": parsed.get("insights", {}),
+                "insights": parsed.get("insights", []) if isinstance(parsed.get("insights"), list) else [],
                 "general": parsed.get("general", {}),
                 "visualizations": parsed.get("visualizations", [])
             }

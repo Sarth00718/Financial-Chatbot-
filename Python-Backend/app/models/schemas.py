@@ -4,7 +4,7 @@ Defines the structure of API requests and responses
 """
 
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional
+from typing import Any, List, Dict, Optional, Union
 
 class ProcessDocumentRequest(BaseModel):
     """
@@ -87,15 +87,17 @@ class Citation(BaseModel):
 
 class QueryResponse(BaseModel):
     """
-    Response model for query endpoint
-    Returns the AI's answer with optional source citations
+    Response model for query endpoint.
+    insights accepts both list (enterprise modes) and dict (legacy modes).
+    Using Any to avoid Pydantic v2 Union coercion issues.
     """
     answer: str = Field(..., description="AI-generated answer to the question")
     citations: List[Citation] = Field(default=[], description="Source citations from RAG retrieval")
     documents: Optional[Dict] = Field(default={}, description="Extracted document insights")
-    insights: Optional[Dict] = Field(default={}, description="Analytical insights")
+    insights: Any = Field(default=[], description="Analytical insights — list or dict depending on mode")
     general: Optional[Dict] = Field(default={}, description="General metadata and entities")
     visualizations: Optional[List[Dict]] = Field(default=[], description="Chart data array for Recharts")
+    analysisType: Optional[str] = Field(default=None, description="Analysis type when set by enterprise prompts")
     
     class Config:
         json_schema_extra = {

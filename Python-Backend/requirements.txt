@@ -28,8 +28,8 @@ requests==2.32.3
 
 # PDF
 pypdf==5.0.1
-pymupdf==1.25.2
-pdfplumber==0.11.10
+pymupdf==1.25.3
+pdfplumber==0.11.4
 
 # OCR / Image
 numpy==1.26.4
@@ -37,8 +37,18 @@ Pillow>=12.0.0
 opencv-python-headless==4.10.0.84
 
 # Tables
-camelot-py==0.11.0
-tabula-py==2.9.3
+camelot-py==2.0.0
+tabula-py==2.10.0
+
+# Unstructured document parsing
+unstructured==0.23.1
 
 # Upload
 python-multipart==0.0.12
+
+# DOCX support
+python-docx==1.1.2
+
+# Excel support (used in document_processor.py)
+pandas==2.2.3
+openpyxl==3.1.5

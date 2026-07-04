@@ -23,6 +23,7 @@ router.get("/user", getUserAnalytics);
 router.get("/admin", authorize("admin"), getAdminAnalytics);
 
 // Export analytics — admin only in production; any authenticated user in development
-router.get("/export", process.env.NODE_ENV === "production" ? authorize("admin") : (req, res, next) => next(), exportAnalytics);
+const exportAuth = process.env.NODE_ENV === "production" ? authorize("admin") : (req, res, next) => next();
+router.get("/export", exportAuth, exportAnalytics);
 
 export default router;

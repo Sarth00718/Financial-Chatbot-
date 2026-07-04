@@ -1,423 +1,223 @@
-/**
- * Executive Dashboard — Redesigned
- * Enterprise KPI extraction and executive summary hub.
- */
-
 import { useState, useEffect } from 'react';
 import {
-  Box, Grid, Card, CardContent, Stack, Typography, Button, Chip,
-  Select, MenuItem, FormControl, CircularProgress, Paper, Avatar,
-  Divider, Skeleton,
+  Box, Typography, Paper, Grid, Stack, alpha, Chip,
 } from '@mui/material';
 import {
-  TrendingUp, Assessment, Summarize, Warning,
-  AccountBalance, ShowChart, BarChart, MonetizationOn,
-  ArrowUpward, CheckCircleOutline,
+  Assessment, People, AutoAwesome, ShowChart, Forum,
+  Description, TrendingUp, Category,
 } from '@mui/icons-material';
-import { motion, AnimatePresence } from 'framer-motion';
-import ReactMarkdown from 'react-markdown';
-import toast from 'react-hot-toast';
-import { conversationAPI, enterpriseAPI } from '../utils/api';
+import { motion } from 'framer-motion';
+import { analyticsAPI, enterpriseAPI } from '../utils/api';
 import { DashboardSkeleton } from '../components/ui/LoadingSkeleton';
-import CitationPanel from '../components/CitationPanel';
-import ErrorBoundary from '../components/ErrorBoundary';
+import { useAuth } from '../contexts/AuthContext';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip as ReTooltip, ResponsiveContainer, PieChart, Pie, Cell,
+} from 'recharts';
 
-/* ─── KPI metadata ─────────────────────────────────────────────────────── */
-const KPI_CONFIG = [
-  { key: 'revenue',              label: 'Revenue',            icon: MonetizationOn, color: '#2563EB' },
-  { key: 'gross_profit',         label: 'Gross Profit',       icon: TrendingUp,     color: '#16A34A' },
-  { key: 'operating_income',     label: 'Operating Income',   icon: BarChart,       color: '#7C3AED' },
-  { key: 'net_income',           label: 'Net Income',         icon: AccountBalance, color: '#0EA5E9' },
-  { key: 'ebitda',               label: 'EBITDA',             icon: ShowChart,      color: '#F59E0B' },
-  { key: 'gross_margin_pct',     label: 'Gross Margin',       icon: TrendingUp,     color: '#16A34A', pct: true },
-  { key: 'operating_margin_pct', label: 'Operating Margin',   icon: BarChart,       color: '#2563EB', pct: true },
-  { key: 'net_margin_pct',       label: 'Net Margin',         icon: ShowChart,      color: '#7C3AED', pct: true },
-  { key: 'eps',                  label: 'EPS',                icon: MonetizationOn, color: '#F59E0B' },
-  { key: 'total_assets',         label: 'Total Assets',       icon: AccountBalance, color: '#0EA5E9' },
-  { key: 'cash_and_equivalents', label: 'Cash & Equivalents', icon: MonetizationOn, color: '#16A34A' },
-];
+const COLORS = ['#2563EB', '#7C3AED', '#16A34A', '#F59E0B', '#EF4444', '#0EA5E9', '#EC4899', '#14B8A6'];
 
-/* ─── KPI Card ─────────────────────────────────────────────────────────── */
-const KpiCard = ({ config, value, delay = 0 }) => {
-  const Icon = config.icon;
-  const display =
-    typeof value === 'number'
-      ? value.toLocaleString() + (config.pct ? '%' : '')
-      : typeof value === 'object' && value !== null
-      ? Object.entries(value)
-          .map(([k, v]) => `${k}: ${typeof v === 'number' ? v.toLocaleString() : v}`)
-          .join(', ')
-      : String(value);
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ delay, duration: 0.3 }}
-    >
-      <Card sx={{ height: '100%' }}>
-        <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
-          <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 1.5 }}>
-            <Box
-              sx={{
-                width: 32, height: 32, borderRadius: 1.5,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                bgcolor: `${config.color}18`,
-              }}
-            >
-              <Icon sx={{ color: config.color, fontSize: 16 }} />
-            </Box>
-            <Typography variant="caption" color="text.secondary" fontWeight={600} lineHeight={1.2}>
-              {config.label}
-            </Typography>
-          </Stack>
-          <Typography
-            variant="h6"
-            fontWeight={800}
-            sx={{ fontSize: '1rem', wordBreak: 'break-word', lineHeight: 1.3 }}
-          >
-            {display}
-          </Typography>
-        </CardContent>
-      </Card>
-    </motion.div>
-  );
-};
-
-/* ─── Step indicator ───────────────────────────────────────────────────── */
-const Step = ({ num, label, active, done }) => (
-  <Stack direction="row" alignItems="center" gap={1.25}>
-    <Avatar
-      sx={{
-        width: 28, height: 28, fontSize: '0.75rem', fontWeight: 700,
-        bgcolor: done ? 'success.main' : active ? 'primary.main' : 'action.hover',
-        color: done || active ? '#fff' : 'text.disabled',
-        transition: 'all 0.25s',
-      }}
-    >
-      {done ? <CheckCircleOutline sx={{ fontSize: 16 }} /> : num}
-    </Avatar>
-    <Typography
-      variant="body2"
-      fontWeight={active || done ? 700 : 400}
-      color={active || done ? 'text.primary' : 'text.disabled'}
-    >
-      {label}
-    </Typography>
-  </Stack>
+const KpiCard = ({ icon: Icon, label, value, color }) => (
+  <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+    <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2, height: '100%' }}>
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+        <Box sx={{ width: 38, height: 38, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: alpha(color || '#2563EB', 0.1) }}>
+          <Icon sx={{ fontSize: 18, color: color || '#2563EB' }} />
+        </Box>
+        <Box>
+          <Typography variant="h4" fontWeight={800} sx={{ letterSpacing: '-0.02em', lineHeight: 1.1 }}>{value ?? '—'}</Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', fontWeight: 500 }}>{label}</Typography>
+        </Box>
+      </Box>
+    </Paper>
+  </motion.div>
 );
 
-/* ─────────────────────────────────────────────────────────────────────────── */
-
 const ExecutiveDashboard = () => {
-  const [conversations, setConversations] = useState([]);
-  const [selectedConv, setSelectedConv] = useState('');
+  const { isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [kpiData, setKpiData] = useState(null);
-  const [summary, setSummary] = useState(null);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [analyzeType, setAnalyzeType] = useState('');
+  const [analysisTypes, setAnalysisTypes] = useState([]);
+  const [adminAnalytics, setAdminAnalytics] = useState(null);
+  const [userAnalytics, setUserAnalytics] = useState(null);
 
   useEffect(() => {
-    conversationAPI.getAll()
-      .then((res) => setConversations(res.data.data || []))
-      .catch(() => toast.error('Failed to load conversations'))
-      .finally(() => setLoading(false));
-  }, []);
-
-  const loadKPIs = async () => {
-    if (!selectedConv) return;
-    setAnalyzeType('kpi');
-    setAnalyzing(true);
-    setKpiData(null);
-    try {
-      const res = await enterpriseAPI.getAuditSummary({ conversationId: selectedConv });
-      setKpiData(res.data.data?.data || null);
-    } catch {
-      toast.error('Failed to extract KPIs');
-    } finally {
-      setAnalyzing(false);
-      setAnalyzeType('');
-    }
-  };
-
-  const runExecutiveSummary = async () => {
-    if (!selectedConv) return;
-    setAnalyzeType('summary');
-    setAnalyzing(true);
-    setSummary(null);
-    try {
-      const res = await enterpriseAPI.analyze({
-        analysisType: 'executive_summary',
-        conversationId: selectedConv,
-      });
-      setSummary(res.data.data);
-      toast.success('Executive summary ready');
-    } catch {
-      toast.error('Failed to generate summary');
-    } finally {
-      setAnalyzing(false);
-      setAnalyzeType('');
-    }
-  };
-
-  const hasResults = kpiData || summary;
-  const step1Done = Boolean(selectedConv);
-  const step2Done = Boolean(hasResults);
+    const fetchData = async () => {
+      try {
+        const [typesRes] = await Promise.all([
+          enterpriseAPI.getAnalysisTypes().catch(() => ({ data: { data: { analysisTypes: [] } } })),
+        ]);
+        setAnalysisTypes(typesRes.data?.data?.analysisTypes || []);
+        if (isAdmin) {
+          try {
+            const adminRes = await analyticsAPI.getAdminAnalytics();
+            setAdminAnalytics(adminRes.data.data);
+          } catch {}
+        } else {
+          try {
+            const userRes = await analyticsAPI.getUserAnalytics();
+            setUserAnalytics(userRes.data.data);
+          } catch {}
+        }
+      } catch {}
+      finally { setLoading(false); }
+    };
+    fetchData();
+  }, [isAdmin]);
 
   if (loading) return <DashboardSkeleton />;
 
-  const presentKpis = KPI_CONFIG.filter((c) => kpiData?.[c.key] != null);
+  const isExecutive = isAdmin && adminAnalytics;
+  const isUser = !isAdmin && userAnalytics;
+
+  const overview = userAnalytics?.overview;
+  const featureUsage = adminAnalytics?.featureUsage || userAnalytics?.featureUsage || [];
+  const activityData = adminAnalytics?.activityOverTime || userAnalytics?.usageOverTime || [];
+  const userGrowth = adminAnalytics?.userGrowth || [];
+  const docTypes = adminAnalytics?.documentTypes || [];
+
+  const totalUsers = userGrowth.reduce((s, u) => s + (u.users || 0), 0);
+  const totalConversations = activityData.reduce((s, a) => s + (a.conversations || 0), 0);
+  const totalFeatureOps = featureUsage.reduce((s, f) => s + (f.count || 0), 0);
 
   return (
-    <ErrorBoundary>
-      <Box sx={{ width: '100%', p: { xs: 2, sm: 2.5, md: 3 }, maxWidth: 1280, mx: 'auto' }}>
-
-        {/* ── Page header ─────────────────────────────────────────── */}
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-          <Box sx={{ mb: 3 }}>
-            <Stack direction="row" alignItems="center" gap={2} sx={{ mb: 0.5 }}>
-              <Box
-                sx={{
-                  width: 44, height: 44, borderRadius: 2,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: 'linear-gradient(135deg, #2563EB, #7C3AED)',
-                }}
-              >
-                <TrendingUp sx={{ color: '#fff', fontSize: 22 }} />
-              </Box>
-              <Box>
-                <Typography variant="h5" fontWeight={800} lineHeight={1.2}>Executive Dashboard</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Financial KPI extraction &amp; intelligent summarization
-                </Typography>
-              </Box>
-            </Stack>
-          </Box>
-        </motion.div>
-
-        {/* ── Progress steps ──────────────────────────────────────── */}
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <Card sx={{ mb: 3 }}>
-            <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
-              <Stack
-                direction={{ xs: 'column', sm: 'row' }}
-                alignItems={{ xs: 'flex-start', sm: 'center' }}
-                gap={{ xs: 2, sm: 3 }}
-              >
-                <Step num={1} label="Select conversation" active={!step1Done} done={step1Done} />
-                <Box sx={{ flex: 1, height: 1, bgcolor: 'divider', display: { xs: 'none', sm: 'block' } }} />
-                <Step num={2} label="Run analysis" active={step1Done && !step2Done} done={step2Done} />
-                <Box sx={{ flex: 1, height: 1, bgcolor: 'divider', display: { xs: 'none', sm: 'block' } }} />
-                <Step num={3} label="Review insights" active={step2Done} done={false} />
-              </Stack>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* ── Controls ────────────────────────────────────────────── */}
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
-          <Card sx={{ mb: 3 }}>
-            <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
-              <Typography variant="subtitle2" color="text.secondary" fontWeight={600} sx={{ mb: 2 }}>
-                ANALYSIS CONTROLS
-              </Typography>
-              <Stack
-                direction={{ xs: 'column', sm: 'row' }}
-                alignItems={{ xs: 'stretch', sm: 'center' }}
-                gap={2}
-              >
-                <FormControl size="small" sx={{ minWidth: 260, flex: { sm: 1 }, maxWidth: { sm: 360 } }}>
-                  <Select
-                    value={selectedConv || ''}
-                    displayEmpty
-                    onChange={(e) => {
-                      setSelectedConv(e.target.value);
-                      setKpiData(null);
-                      setSummary(null);
-                    }}
-                    renderValue={(v) => {
-                      if (!v) return <Typography color="text.disabled" variant="body2">Select a conversation…</Typography>;
-                      return conversations.find((c) => c._id === v)?.title || 'Untitled';
-                    }}
-                  >
-                    <MenuItem value="" disabled>
-                      <em>Select a conversation…</em>
-                    </MenuItem>
-                    {conversations.map((c) =>
-                      c?._id ? (
-                        <MenuItem key={c._id} value={c._id}>
-                          {c.title || 'Untitled'}
-                        </MenuItem>
-                      ) : null,
-                    )}
-                  </Select>
-                </FormControl>
-
-                <Stack direction="row" gap={1.5} flexWrap="wrap">
-                  <Button
-                    variant="contained"
-                    startIcon={analyzing && analyzeType === 'kpi' ? <CircularProgress size={14} color="inherit" /> : <Assessment />}
-                    onClick={loadKPIs}
-                    disabled={!selectedConv || analyzing}
-                    sx={{ minWidth: 140 }}
-                  >
-                    Extract KPIs
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    startIcon={analyzing && analyzeType === 'summary' ? <CircularProgress size={14} color="inherit" /> : <Summarize />}
-                    onClick={runExecutiveSummary}
-                    disabled={!selectedConv || analyzing}
-                    sx={{ minWidth: 160 }}
-                  >
-                    Exec Summary
-                  </Button>
-                </Stack>
-              </Stack>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* ── KPI grid ────────────────────────────────────────────── */}
-        <AnimatePresence>
-          {kpiData && (
-            <motion.div
-              key="kpis"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.4 }}
-            >
-              <Box sx={{ mb: 3 }}>
-                <Stack direction="row" alignItems="center" gap={1.5} sx={{ mb: 2 }}>
-                  <TrendingUp sx={{ color: 'primary.main' }} />
-                  <Typography variant="h6" fontWeight={700}>Financial KPIs</Typography>
-                  {kpiData.company && (
-                    <Chip label={kpiData.company} size="small" color="primary" variant="outlined" />
-                  )}
-                  {kpiData.period && (
-                    <Chip label={kpiData.period} size="small" variant="outlined" />
-                  )}
-                </Stack>
-
-                {presentKpis.length > 0 ? (
-                  <Grid container spacing={2}>
-                    {presentKpis.map((c, i) => (
-                      <Grid item xs={6} sm={4} md={3} key={c.key}>
-                        <KpiCard config={c} value={kpiData[c.key]} delay={i * 0.04} />
-                      </Grid>
-                    ))}
-                  </Grid>
-                ) : (
-                  <Paper sx={{ p: 4, textAlign: 'center' }}>
-                    <Typography color="text.secondary">
-                      No structured KPI data found in this conversation.
-                    </Typography>
-                  </Paper>
-                )}
-              </Box>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* ── Executive Summary ───────────────────────────────────── */}
-        <AnimatePresence>
-          {summary && (
-            <motion.div
-              key="summary"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.4 }}
-            >
-              <Card sx={{ mb: 3 }}>
-                <CardContent>
-                  <Stack direction="row" alignItems="center" gap={1.5} sx={{ mb: 2 }}>
-                    <Box
-                      sx={{
-                        width: 36, height: 36, borderRadius: 1.5,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        bgcolor: 'warning.main', opacity: 1,
-                      }}
-                    >
-                      <Warning sx={{ color: '#fff', fontSize: 18 }} />
-                    </Box>
-                    <Typography variant="h6" fontWeight={700}>Executive Summary</Typography>
-                  </Stack>
-                  <Divider sx={{ mb: 2.5 }} />
-                  <Box
-                    className="prose-chat"
-                    sx={{
-                      '& p': { mb: 1.5, lineHeight: 1.75 },
-                      '& h1,& h2,& h3': { fontWeight: 700, mt: 2.5, mb: 1 },
-                      '& ul,& ol': { pl: 2.5, mb: 1.5 },
-                      '& li': { mb: 0.75, lineHeight: 1.7 },
-                    }}
-                  >
-                    <ReactMarkdown>{summary.answer || ''}</ReactMarkdown>
-                  </Box>
-                  {summary.citations?.length > 0 && (
-                    <>
-                      <Divider sx={{ mt: 3, mb: 2 }} />
-                      <CitationPanel citations={summary.citations} />
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* ── Empty state ─────────────────────────────────────────── */}
-        {!hasResults && !analyzing && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
-            <Paper
-              sx={{
-                p: 6, textAlign: 'center',
-                border: '2px dashed', borderColor: 'divider',
-                bgcolor: 'transparent',
-              }}
-            >
-              <Box
-                sx={{
-                  width: 64, height: 64, borderRadius: '50%',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: 'linear-gradient(135deg, #2563EB18, #7C3AED18)',
-                  mx: 'auto', mb: 2,
-                }}
-              >
-                <Assessment sx={{ fontSize: 30, color: 'primary.main' }} />
-              </Box>
-              <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>
-                Ready to analyze
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 380, mx: 'auto' }}>
-                Select a conversation that contains uploaded financial documents, then click
-                "Extract KPIs" or "Exec Summary" to generate insights.
-              </Typography>
-            </Paper>
-          </motion.div>
-        )}
-
-        {/* ── Loading skeleton while analyzing ───────────────────── */}
-        {analyzing && (
-          <Grid container spacing={2}>
-            {[...Array(8)].map((_, i) => (
-              <Grid item xs={6} sm={4} md={3} key={i}>
-                <Card>
-                  <CardContent>
-                    <Skeleton variant="rounded" width={32} height={32} sx={{ mb: 1.5, borderRadius: 1.5 }} />
-                    <Skeleton variant="text" width="60%" sx={{ mb: 0.75 }} />
-                    <Skeleton variant="text" width="80%" height={32} />
-                  </CardContent>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
-        )}
+    <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1200, mx: 'auto' }}>
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h4" fontWeight={800} sx={{ letterSpacing: '-0.03em', mb: 0.25 }}>
+          Executive Dashboard
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          {isExecutive
+            ? 'System-wide performance metrics and business intelligence'
+            : 'Your account analytics and usage overview'
+          }
+        </Typography>
       </Box>
-    </ErrorBoundary>
+
+      {/* KPIs */}
+      {(isExecutive || isUser) && (
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          {isExecutive && (
+            <>
+              <Grid item xs={6} sm={3}>
+                <KpiCard icon={People} label="Total Users" value={totalUsers} color="#2563EB" />
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <KpiCard icon={Forum} label="Conversations" value={totalConversations} color="#7C3AED" />
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <KpiCard icon={AutoAwesome} label="Analysis Runs" value={totalFeatureOps} color="#16A34A" />
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <KpiCard icon={Category} label="Doc Types" value={docTypes.length || '—'} color="#F59E0B" />
+              </Grid>
+            </>
+          )}
+          {isUser && overview && (
+            <>
+              <Grid item xs={4}>
+                <KpiCard icon={Forum} label="Conversations" value={overview.totalConversations || 0} color="#2563EB" />
+              </Grid>
+              <Grid item xs={4}>
+                <KpiCard icon={Assessment} label="Messages Sent" value={overview.totalMessages || 0} color="#7C3AED" />
+              </Grid>
+              <Grid item xs={4}>
+                <KpiCard icon={Description} label="Documents" value={overview.totalDocuments || 0} color="#16A34A" />
+              </Grid>
+            </>
+          )}
+        </Grid>
+      )}
+
+      {featureUsage.length > 0 && (
+        <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2, mb: 2.5 }}>
+          <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 2 }}>Feature Usage</Typography>
+          <Stack spacing={1.25}>
+            {featureUsage.map((f, i) => (
+              <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: COLORS[i % COLORS.length], flexShrink: 0 }} />
+                <Typography variant="body2" sx={{ minWidth: 130, fontSize: '0.8125rem', fontWeight: 500 }}>
+                  {(f.feature || 'Unknown').replace(/_/g, ' ')}
+                </Typography>
+                <Box sx={{ flex: 1, height: 10, bgcolor: alpha(COLORS[i % COLORS.length], 0.1), borderRadius: 1, overflow: 'hidden' }}>
+                  <Box sx={{ width: `${Math.min((f.count / Math.max(...featureUsage.map(x => x.count))) * 100, 100)}%`, height: '100%', bgcolor: COLORS[i % COLORS.length], borderRadius: 1, transition: 'width 0.5s ease' }} />
+                </Box>
+                <Typography variant="caption" fontWeight={700} sx={{ minWidth: 30, textAlign: 'right' }}>{f.count}</Typography>
+              </Box>
+            ))}
+          </Stack>
+        </Paper>
+      )}
+
+      {activityData.length > 0 && (
+        <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2, mb: 2.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+            <Typography variant="subtitle2" fontWeight={700}>Activity Over Time</Typography>
+          </Box>
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={activityData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <ReTooltip contentStyle={{ borderRadius: 8, border: '1px solid var(--color-border)', fontSize: 12 }} />
+              <Bar dataKey={activityData[0]?.conversations !== undefined ? 'conversations' : 'count'} fill="#2563EB" radius={[4, 4, 0, 0]} barSize={24} />
+            </BarChart>
+          </ResponsiveContainer>
+        </Paper>
+      )}
+
+      {docTypes.length > 0 && (
+        <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2, mb: 2.5 }}>
+          <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 2 }}>Document Types</Typography>
+          <Stack spacing={1}>
+            {docTypes.map((d, i) => (
+              <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <Typography variant="body2" sx={{ minWidth: 100, fontSize: '0.8125rem', fontWeight: 500, textTransform: 'capitalize' }}>
+                  {d.type || 'Unknown'}
+                </Typography>
+                <Box sx={{ flex: 1, height: 8, bgcolor: alpha(COLORS[i % COLORS.length], 0.1), borderRadius: 1, overflow: 'hidden' }}>
+                  <Box sx={{ width: `${Math.min((d.count / Math.max(...docTypes.map(x => x.count))) * 100, 100)}%`, height: '100%', bgcolor: COLORS[i % COLORS.length], borderRadius: 1, transition: 'width 0.5s ease' }} />
+                </Box>
+                <Typography variant="caption" fontWeight={700} sx={{ minWidth: 30, textAlign: 'right' }}>{d.count}</Typography>
+              </Box>
+            ))}
+          </Stack>
+        </Paper>
+      )}
+
+      {userGrowth.length > 0 && (
+        <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2, mb: 2.5 }}>
+          <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 2 }}>User Growth</Typography>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={userGrowth}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <ReTooltip contentStyle={{ borderRadius: 8, border: '1px solid var(--color-border)', fontSize: 12 }} />
+              <Bar dataKey="users" fill="#16A34A" radius={[4, 4, 0, 0]} barSize={24} />
+            </BarChart>
+          </ResponsiveContainer>
+        </Paper>
+      )}
+
+      {analysisTypes.length > 0 && (
+        <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2, mb: 2.5 }}>
+          <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>Available Analysis Modes</Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+            {analysisTypes.map((t) => (
+              <Chip key={t} label={(t || '').replace(/_/g, ' ')} size="small" variant="outlined" sx={{ fontSize: '0.75rem', fontWeight: 500 }} />
+            ))}
+          </Box>
+        </Paper>
+      )}
+
+      {!isExecutive && !isUser && !featureUsage.length && !activityData.length && (
+        <Paper variant="outlined" sx={{ textAlign: 'center', py: 8, borderRadius: 2 }}>
+          <TrendingUp sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
+          <Typography variant="h6" fontWeight={700} sx={{ mb: 0.5 }}>No data yet</Typography>
+          <Typography variant="body2" color="text.secondary">Start using FinChatBot to see your analytics here</Typography>
+        </Paper>
+      )}
+    </Box>
   );
 };
 

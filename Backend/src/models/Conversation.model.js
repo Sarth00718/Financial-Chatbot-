@@ -32,7 +32,7 @@ const conversationSchema = new mongoose.Schema(
     // Feature mode being used in this conversation
     featureUsed: {
       type: String,
-      enum: Object.values(FEATURE_MODES),
+      enum: [...Object.values(FEATURE_MODES), null],
       default: FEATURE_MODES.SMART,
     },
   },

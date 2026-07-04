@@ -62,4 +62,4 @@ export const upload = multer({
  * Upload multiple files
  * Used for batch document processing
  */
-export const uploadMultiple = upload.array("documents", 20); // Max 20 files at once
+export const uploadMultiple = upload.array("documents", 10); // Max 10 files at once

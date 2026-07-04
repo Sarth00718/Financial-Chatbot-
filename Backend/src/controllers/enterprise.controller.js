@@ -306,10 +306,11 @@ export const advancedSearch = asyncHandler(async (req, res) => {
 
   const results = { conversations: [], bookmarks: [] };
 
+  const escapedQ = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   if (type === "all" || type === "conversations") {
     results.conversations = await Conversation.find({
       user: req.user._id,
-      title: { $regex: q, $options: "i" },
+      title: { $regex: escapedQ, $options: "i" },
     })
       .select("title featureUsed updatedAt")
       .sort({ updatedAt: -1 })
@@ -320,9 +321,9 @@ export const advancedSearch = asyncHandler(async (req, res) => {
     results.bookmarks = await Bookmark.find({
       user: req.user._id,
       $or: [
-        { title: { $regex: q, $options: "i" } },
-        { content: { $regex: q, $options: "i" } },
-        { tags: { $regex: q, $options: "i" } },
+        { title: { $regex: escapedQ, $options: "i" } },
+        { content: { $regex: escapedQ, $options: "i" } },
+        { tags: { $regex: escapedQ, $options: "i" } },
       ],
     })
       .select("title analysisType tags createdAt")

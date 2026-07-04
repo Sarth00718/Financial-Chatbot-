@@ -22,7 +22,7 @@ import {
 import {
   Summarize, Calculate, Psychology, Warning, CompareArrows,
   Description, TrendingUp, Lightbulb, Assessment, Article,
-  BookmarkAdd, AutoAwesome, ExpandLess, ExpandMore,
+  BookmarkAdd, Visibility, AutoAwesome, ExpandLess, ExpandMore,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -80,7 +80,7 @@ const EnterpriseInsights = ({ conversationId, hasDocuments }) => {
     if (!result) return;
     try {
       await enterpriseAPI.createBookmark({
-        title: ANALYSIS_CONFIG.find((a) => a.type === result.analysisType)?.label || 'Analysis',
+        title: selectedConfig?.label || 'Analysis',
         content: result.answer,
         conversationId,
         analysisType: result.analysisType,
@@ -88,6 +88,21 @@ const EnterpriseInsights = ({ conversationId, hasDocuments }) => {
       toast.success('Saved to bookmarks');
     } catch {
       toast.error('Failed to save bookmark');
+    }
+  };
+
+  const saveToWatchlist = async () => {
+    if (!result) return;
+    try {
+      await enterpriseAPI.addToWatchlist({
+        name: selectedConfig?.label || 'Analysis',
+        notes: result.answer ? result.answer.substring(0, 200) : '',
+        conversationId,
+        tags: [result.analysisType].filter(Boolean),
+      });
+      toast.success('Added to watchlist');
+    } catch {
+      toast.error('Failed to add to watchlist');
     }
   };
 
@@ -318,6 +333,15 @@ const EnterpriseInsights = ({ conversationId, hasDocuments }) => {
             variant="outlined"
           >
             Save to bookmarks
+          </Button>
+          <Button
+            size="small"
+            startIcon={<Visibility fontSize="small" />}
+            onClick={saveToWatchlist}
+            variant="outlined"
+            color="success"
+          >
+            Add to watchlist
           </Button>
           <Button size="small" onClick={() => setDialogOpen(false)} variant="contained" disableElevation>
             Done

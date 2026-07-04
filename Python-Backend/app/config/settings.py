@@ -33,9 +33,12 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "llama-3.1-8b-instant"  # FREE Groq model
     LLM_TEMPERATURE: float = 0.0
     LLM_MAX_TOKENS: int = 2000  # Limit to save credits
+    LLM_TIMEOUT: int = 60  # Timeout in seconds for LLM API calls
 
     # Vision Model Configuration (Groq — for chart/image/scan analysis)
-    # Current supported vision model on Groq (llama-3.2-90b-vision-preview is decommissioned)
+    # As of July 2026, the only Groq models supporting image input are:
+    #   meta-llama/llama-4-scout-17b-16e-instruct
+    #   meta-llama/llama-4-maverick-17b-128e-instruct
     VISION_MODEL: str = "meta-llama/llama-4-scout-17b-16e-instruct"
     
     # OCR Configuration

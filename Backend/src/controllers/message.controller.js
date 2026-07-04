@@ -1,6 +1,6 @@
 /**
  * Message Controller
- * Handles message edit and delete operations
+ * Handles message edit, delete, and regenerate operations.
  */
 
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -9,203 +9,190 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { Message } from "../models/Message.model.js";
 import { Conversation } from "../models/Conversation.model.js";
 import mongoose from "mongoose";
+import axios from "axios";
+
+const VALID_FEATURE_MODES = new Set([
+  'Smart_Chat', 'Document_Analysis', 'Analytical_Insights', 'General_Conversation',
+]);
+const ENTERPRISE_FEATURE_MODES = new Set(['Document_Analysis', 'Analytical_Insights']);
+
+/** Sanitise feature mode — never store an invalid enum value. */
+const sanitiseFeatureMode = (raw) =>
+  raw && VALID_FEATURE_MODES.has(raw) ? raw : 'Smart_Chat';
+
+/* ─────────────────────────────────────────────────────────────────── */
 
 /**
- * Update a message
+ * Update a message (content only, no AI call).
  * PATCH /api/v1/messages/:messageId
  */
 export const updateMessage = asyncHandler(async (req, res) => {
   const { messageId } = req.params;
   const { content } = req.body;
 
-  // Validate input
-  if (!content || content.trim() === "") {
+  if (!content || !content.trim()) {
     throw new ApiError(400, "Message content cannot be empty");
   }
-
   if (!mongoose.isValidObjectId(messageId)) {
     throw new ApiError(400, "Invalid message ID");
   }
 
-  // Find message
   const message = await Message.findById(messageId).populate("conversation");
+  if (!message) throw new ApiError(404, "Message not found");
 
-  if (!message) {
-    throw new ApiError(404, "Message not found");
-  }
-
-  // Verify ownership - user can only edit their own messages
   if (message.conversation.user.toString() !== req.user._id.toString()) {
     throw new ApiError(403, "You can only edit your own messages");
   }
-
-  // Prevent editing AI messages
   if (message.role !== "user") {
     throw new ApiError(403, "You can only edit user messages");
   }
 
-  // Update message
-  message.content = content.trim();
-  await message.save();
+  // Use findByIdAndUpdate to avoid enum validation on untouched fields
+  const updated = await Message.findByIdAndUpdate(
+    messageId,
+    { $set: { content: content.trim() } },
+    { new: true, runValidators: false }
+  );
 
-  return res
-    .status(200)
-    .json(new ApiResponse(200, message, "Message updated successfully"));
+  return res.status(200).json(new ApiResponse(200, updated, "Message updated successfully"));
 });
 
+/* ─────────────────────────────────────────────────────────────────── */
+
 /**
- * Edit message and regenerate AI response
+ * Edit user message and regenerate the AI response.
  * POST /api/v1/messages/:messageId/regenerate
  */
 export const editAndRegenerateMessage = asyncHandler(async (req, res) => {
   const { messageId } = req.params;
   const { content } = req.body;
 
-  // Validate input
-  if (!content || content.trim() === "") {
+  if (!content || !content.trim()) {
     throw new ApiError(400, "Message content cannot be empty");
   }
-
   if (!mongoose.isValidObjectId(messageId)) {
     throw new ApiError(400, "Invalid message ID");
   }
 
-  // Find message and populate conversation with documents
   const message = await Message.findById(messageId).populate({
     path: "conversation",
     populate: { path: "documents" },
   });
+  if (!message) throw new ApiError(404, "Message not found");
 
-  if (!message) {
-    throw new ApiError(404, "Message not found");
-  }
-
-  // Verify ownership
   if (message.conversation.user.toString() !== req.user._id.toString()) {
     throw new ApiError(403, "You can only edit your own messages");
   }
-
-  // Prevent editing AI messages
   if (message.role !== "user") {
     throw new ApiError(403, "You can only edit user messages");
   }
 
-  // Update the user message
-  message.content = content.trim();
-  message.featureUsed = message.conversation.featureUsed;
-  await message.save();
+  const featureMode = sanitiseFeatureMode(message.conversation.featureUsed);
+  const isEnterpriseMode = ENTERPRISE_FEATURE_MODES.has(featureMode);
 
-  // Find and delete all messages after this one (including the old AI response)
-  await Message.deleteMany({
-    conversation: message.conversation._id,
-    createdAt: { $gt: message.createdAt },
-  });
+  // ── Step 1: Save the edited content — use update to avoid enum validation ──
+  const savedUserMsg = await Message.findByIdAndUpdate(
+    messageId,
+    { $set: { content: content.trim(), featureUsed: featureMode } },
+    { new: true, runValidators: false }
+  );
 
-  // Get chat history up to this message
+  // ── Step 2: Build chat history (messages BEFORE this one) ──
   const chatHistory = await Message.find({
     conversation: message.conversation._id,
-    createdAt: { $lte: message.createdAt },
+    createdAt: { $lt: message.createdAt },
   })
     .sort({ createdAt: "asc" })
     .select("role content -_id")
     .limit(20);
 
-  // Get vector namespaces from processed documents
   const vectorNamespaces = message.conversation.documents
-    .filter((doc) => doc.status === "processed")
-    .map((doc) => doc.vectorNamespace);
+    .filter((d) => d.status === "processed")
+    .map((d) => d.vectorNamespace);
 
-  // Call Python AI service for new response
-  const featureMode = message.conversation.featureUsed || 'Smart_Chat';
-  const isEnterpriseMode = new Set(['Document_Analysis', 'Analytical_Insights']).has(featureMode);
-
-  let aiResponse = {};
-  let aiCitations = [];
-  let aiDocuments = {};
-  let aiInsights = [];
-  let aiGeneral = {};
-  let aiVisualizations = [];
-  let aiAnalysisType = null;
-
+  // ── Step 3: Call Python AI service ──
+  let aiResponse = null;
   try {
-    const axios = (await import("axios")).default;
     const response = await axios.post(
       `${process.env.PYTHON_SERVICE_URL}/query`,
       {
         question: content.trim(),
-        chatHistory: chatHistory,
-        vectorNamespaces: vectorNamespaces,
+        chatHistory,
+        vectorNamespaces,
         featureUsed: featureMode,
       },
-      {
-        timeout: 30000,
-      }
+      { timeout: 60000 }
     );
     aiResponse = response.data;
-    aiCitations = aiResponse.citations || [];
-    aiDocuments = aiResponse.documents || {};
-    aiInsights = aiResponse.insights || [];
-    aiGeneral = aiResponse.general || {};
-    aiVisualizations = aiResponse.visualizations || [];
-    aiAnalysisType = aiResponse.analysisType || null;
-  } catch (error) {
-    console.error("Error calling Python AI service:", error.message);
-    throw new ApiError(
-      502,
-      "AI service is currently unavailable. Please try again later."
+  } catch (err) {
+    console.error("[regenerate] Python AI call failed:", err.message);
+    // User message is already saved — return it with null assistant
+    return res.status(200).json(
+      new ApiResponse(200, { userMessage: savedUserMsg, assistantMessage: null },
+        "Message saved; AI service unavailable")
     );
   }
 
-  // For enterprise modes store full payload as JSON content
+  const rawAnswer = aiResponse?.answer || '';
+  if (!rawAnswer.trim()) {
+    return res.status(200).json(
+      new ApiResponse(200, { userMessage: savedUserMsg, assistantMessage: null },
+        "Message saved; AI returned empty response")
+    );
+  }
+
+  // ── Step 4: Delete stale messages after the edited one ──
+  await Message.deleteMany({
+    conversation: message.conversation._id,
+    createdAt: { $gt: message.createdAt },
+  });
+
+  // ── Step 5: Build message content (full JSON for enterprise modes) ──
   let messageContent;
   if (isEnterpriseMode) {
-    const fullPayload = {
-      answer: aiResponse.answer || '',
-      analysisType: aiAnalysisType,
-      documents: aiDocuments,
-      insights: aiInsights,
-      general: aiGeneral,
-      visualizations: aiVisualizations,
-    };
-    messageContent = JSON.stringify(fullPayload);
+    messageContent = JSON.stringify({
+      answer: rawAnswer,
+      analysisType: aiResponse.analysisType || null,
+      documents: aiResponse.documents || {},
+      insights: aiResponse.insights || [],
+      general: aiResponse.general || {},
+      visualizations: aiResponse.visualizations || [],
+    });
   } else {
-    messageContent = aiResponse.answer || '';
+    messageContent = rawAnswer;
   }
 
-  if (!messageContent || messageContent.trim() === "") {
-    throw new ApiError(500, "Received empty response from AI service");
-  }
-
-  // Save new AI response
+  // ── Step 6: Persist assistant message ──
   const assistantMessage = await Message.create({
     conversation: message.conversation._id,
     role: "assistant",
     content: messageContent,
     featureUsed: featureMode,
-    citations: aiCitations,
-    documentsData: aiDocuments,
-    insightsData: aiInsights,
-    generalData: aiGeneral,
-    visualizationsData: aiVisualizations,
-    analysisType: aiAnalysisType,
+    citations: aiResponse.citations || [],
+    documentsData: aiResponse.documents || {},
+    insightsData: aiResponse.insights || [],
+    generalData: aiResponse.general || {},
+    visualizationsData: aiResponse.visualizations || [],
+    analysisType: aiResponse.analysisType || null,
   });
 
-  return res
-    .status(200)
-    .json(
-      new ApiResponse(
-        200,
-        {
-          userMessage: message,
-          assistantMessage,
-        },
-        "Message updated and response regenerated successfully"
-      )
-    );
+  // Bump conversation to top of sidebar
+  await Conversation.findByIdAndUpdate(
+    message.conversation._id,
+    { updatedAt: new Date() },
+    { runValidators: false }
+  );
+
+  return res.status(200).json(
+    new ApiResponse(200, { userMessage: savedUserMsg, assistantMessage },
+      "Message updated and response regenerated successfully")
+  );
 });
 
+/* ─────────────────────────────────────────────────────────────────── */
+
 /**
- * Delete a message
+ * Delete a user message.
  * DELETE /api/v1/messages/:messageId
  */
 export const deleteMessage = asyncHandler(async (req, res) => {
@@ -215,27 +202,17 @@ export const deleteMessage = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid message ID");
   }
 
-  // Find message
   const message = await Message.findById(messageId).populate("conversation");
+  if (!message) throw new ApiError(404, "Message not found");
 
-  if (!message) {
-    throw new ApiError(404, "Message not found");
-  }
-
-  // Verify ownership
   if (message.conversation.user.toString() !== req.user._id.toString()) {
     throw new ApiError(403, "You can only delete your own messages");
   }
-
-  // Prevent deleting AI messages
   if (message.role !== "user") {
     throw new ApiError(403, "You can only delete user messages");
   }
 
-  // Delete message
   await message.deleteOne();
 
-  return res
-    .status(200)
-    .json(new ApiResponse(200, {}, "Message deleted successfully"));
+  return res.status(200).json(new ApiResponse(200, {}, "Message deleted successfully"));
 });

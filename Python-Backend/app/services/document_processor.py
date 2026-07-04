@@ -14,15 +14,12 @@ Works correctly for:
 """
 
 import os
-import base64
 import requests
 import io
 import pymupdf as fitz  # PyMuPDF
 from typing import List, Optional
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage
 
 from app.config.settings import settings
 from app.services.vector_store import vector_store
@@ -52,24 +49,11 @@ class DocumentProcessor:
             chunk_overlap=settings.CHUNK_OVERLAP,
         )
 
-        # Vision-capable LLM — Groq Llama 4 Scout (current as of 2025)
-        # Model candidates (try in order if one fails):
-        #   meta-llama/llama-4-scout-17b-16e-instruct
-        #   meta-llama/llama-4-maverick-17b-128e-instruct
-        VISION_MODEL = getattr(settings, "VISION_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
-        try:
-            self.vision_llm = ChatOpenAI(
-                model=VISION_MODEL,
-                max_tokens=800,
-                openai_api_key=settings.GROQ_API_KEY,
-                openai_api_base="https://api.groq.com/openai/v1",
-            )
-            self.vision_enabled = True
-            print(f"[INIT] Vision model ready: {VISION_MODEL}")
-        except Exception as e:
-            print(f"[WARNING] Vision model unavailable: {e}")
-            self.vision_llm = None
-            self.vision_enabled = False
+        # Vision model disabled — Groq requires public image URLs, not base64
+        # data URIs, and we cannot serve local PDF images as public URLs.
+        # OCR (OCR.Space) handles text extraction from images and scanned pages.
+        self.vision_llm = None
+        self.vision_enabled = False
 
     # ------------------------------------------------------------------
     # LAYER 4: Vision model — chart/image description
@@ -77,38 +61,10 @@ class DocumentProcessor:
 
     def _describe_image_bytes(self, image_bytes: bytes, context: str = "") -> str:
         """
-        Use vision LLM to generate a detailed description of an image/chart.
-        Falls back to a placeholder if vision model is unavailable.
+        Vision model is disabled (Groq requires public URLs, not base64 data URIs).
+        Returns a clean placeholder; actual OCR extraction is handled by ocr_service.
         """
-        if not self.vision_enabled or not self.vision_llm:
-            return "[Image/chart present — vision model not available for description]"
-
-        try:
-            b64 = base64.b64encode(image_bytes).decode("utf-8")
-            prompt_text = (
-                "You are analyzing a financial document image. "
-                "Describe EVERY number, label, axis value, legend entry, and data point you can see. "
-                "If this is a chart: state the chart type, all axes, all data series, and all values. "
-                "If this is a table: reproduce all rows and columns with their exact values. "
-                "If this is a scanned page of text: transcribe the text verbatim. "
-                "Be exhaustive — no detail is too small for financial analysis."
-            )
-            if context:
-                prompt_text = f"Context — {context}\n\n" + prompt_text
-
-            message = HumanMessage(
-                content=[
-                    {"type": "text", "text": prompt_text},
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
-                ]
-            )
-            response = self.vision_llm.invoke([message])
-            desc = response.content or "[No description returned]"
-            print(f"    [VISION] Image described ({len(desc)} chars)")
-            return desc
-        except Exception as e:
-            print(f"    [WARNING] Vision description failed: {e}")
-            return f"[Image present — description failed: {e}]"
+        return "[Image/chart present — described via OCR]"
 
     # ------------------------------------------------------------------
     # LAYER 1: PyMuPDF native text extraction
@@ -582,8 +538,7 @@ class DocumentProcessor:
                         context=f"Uploaded image file: {os.path.basename(file_path)}"
                     )
                     ocr_text = f"[Image Description]:\n{desc}"
-                except Exception as ve:
-                    print(f"    [WARNING] Vision description for uploaded image failed: {ve}")
+                except Exception:
                     if not ocr_text:
                         ocr_text = "[Image could not be processed]"
             

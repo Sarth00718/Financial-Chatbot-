@@ -7,104 +7,101 @@ import { Message } from "../models/Message.model.js";
 import { Conversation } from "../models/Conversation.model.js";
 import axios from "axios";
 
+const VALID_FEATURE_MODES = new Set([
+  'Smart_Chat', 'Document_Analysis', 'Analytical_Insights', 'General_Conversation',
+]);
 const ENTERPRISE_FEATURE_MODES = new Set(['Document_Analysis', 'Analytical_Insights']);
+
+/** Sanitise feature mode — never store an invalid enum value. */
+const sanitiseFeatureMode = (raw) =>
+  raw && VALID_FEATURE_MODES.has(raw) ? raw : 'Smart_Chat';
 
 /**
  * Handle new chat message via Socket.IO
  * Provides real-time chat experience
- * @param {Socket} socket - Socket.IO socket instance
- * @param {Object} data - Message data {conversationId, content}
  */
 export const handleSocketChatMessage = async (socket, data) => {
   try {
     const { conversationId, content } = data;
 
-    // Validate input
     if (!content || content.trim() === "") {
-      socket.emit("chatError", {
-        message: "Message content cannot be empty.",
-      });
+      socket.emit("chatError", { message: "Message content cannot be empty." });
       return;
     }
 
-    // Verify conversation exists before saving the message
-    const conversation = await Conversation.findById(conversationId).populate(
-      "documents"
-    );
+    // Verify conversation belongs to the socket's authenticated user
+    const conversation = await Conversation.findOne({
+      _id: conversationId,
+      user: socket.user.id,
+    }).populate("documents");
 
     if (!conversation) {
-      socket.emit("chatError", {
-        message: "Conversation not found.",
-      });
+      socket.emit("chatError", { message: "Conversation not found." });
       return;
     }
 
-    // Save user's message with the feature mode used
+    const featureMode = sanitiseFeatureMode(conversation.featureUsed);
+    const isEnterpriseMode = ENTERPRISE_FEATURE_MODES.has(featureMode);
+
+    // ── Save user message ──────────────────────────────────────────────
     const userMessage = await Message.create({
       conversation: conversationId,
       role: "user",
-      content: content,
-      featureUsed: conversation.featureUsed,
+      content: content.trim(),
+      featureUsed: featureMode,
     });
 
-    // Emit user message to all clients in the conversation room
     socket.nsp.to(conversationId).emit("newMessage", userMessage);
 
-    // Get recent chat history
+    // ── Build context ──────────────────────────────────────────────────
     const chatHistory = await Message.find({ conversation: conversationId })
       .sort({ createdAt: "asc" })
       .select("role content -_id")
       .limit(20);
 
-    // Get vector namespaces from processed documents
     const vectorNamespaces = conversation.documents
       .filter((doc) => doc.status === "processed")
       .map((doc) => doc.vectorNamespace);
 
-    const featureMode = conversation.featureUsed || 'Smart_Chat';
-    const isEnterpriseMode = ENTERPRISE_FEATURE_MODES.has(featureMode);
-
-    // Call Python AI service
+    // ── Call Python AI service ─────────────────────────────────────────
     try {
       const response = await axios.post(
         `${process.env.PYTHON_SERVICE_URL}/query`,
         {
-          question: content,
-          chatHistory: chatHistory,
-          vectorNamespaces: vectorNamespaces,
+          question: content.trim(),
+          chatHistory,
+          vectorNamespaces,
           featureUsed: featureMode,
         },
-        {
-          timeout: 30000,
-        }
+        { timeout: 60000 }
       );
 
       const aiResponse = response.data;
       const aiCitations = aiResponse.citations || [];
       const aiDocuments = aiResponse.documents || {};
-      const aiInsights = aiResponse.insights || [];
+      const aiInsights = Array.isArray(aiResponse.insights) ? aiResponse.insights : [];
       const aiGeneral = aiResponse.general || {};
       const aiVisualizations = aiResponse.visualizations || [];
       const aiAnalysisType = aiResponse.analysisType || null;
 
-      // For enterprise modes: store the full structured payload as JSON content
-      // so the frontend can reconstruct the complete result object from a single field
+      // For enterprise modes store the full structured JSON payload so
+      // AnalysisResultView can reconstruct the complete result from content alone.
+      // For regular modes store the plain answer string.
       let messageContent;
       if (isEnterpriseMode) {
-        const fullPayload = {
+        messageContent = JSON.stringify({
           answer: aiResponse.answer || '',
           analysisType: aiAnalysisType,
           documents: aiDocuments,
           insights: aiInsights,
           general: aiGeneral,
           visualizations: aiVisualizations,
-        };
-        messageContent = JSON.stringify(fullPayload);
+        });
       } else {
         messageContent = aiResponse.answer || '';
       }
 
-      // Save AI's response
+      // ── Persist assistant message ─────────────────────────────────────
       const assistantMessage = await Message.create({
         conversation: conversationId,
         role: "assistant",
@@ -118,16 +115,25 @@ export const handleSocketChatMessage = async (socket, data) => {
         analysisType: aiAnalysisType,
       });
 
-      // Emit AI response to all clients in the conversation room
       socket.nsp.to(conversationId).emit("newMessage", assistantMessage);
-    } catch (error) {
-      console.error("Error calling Python AI service:", error.message);
+
+      // Bump conversation so it floats to top of sidebar
+      await Conversation.findByIdAndUpdate(
+        conversationId,
+        { updatedAt: new Date() },
+        { runValidators: false }
+      );
+      socket.nsp.to(conversationId).emit("conversationUpdated", { conversationId });
+
+    } catch (aiError) {
+      console.error("[socket] Python AI service error:", aiError.message);
       socket.emit("chatError", {
         message: "AI service is currently unavailable. Please try again later.",
       });
     }
+
   } catch (error) {
-    console.error("Socket chat error:", error.message);
+    console.error("[socket] Chat handler error:", error.message);
     socket.emit("chatError", {
       message: "An error occurred while processing your message.",
     });

@@ -7,8 +7,6 @@ const connectDatabase = async () => {
 
   try {
     const connection = await mongoose.connect(primaryUri, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
       serverSelectionTimeoutMS: 10000,
     });
 
@@ -21,8 +19,6 @@ const connectDatabase = async () => {
       console.warn("Attempting local MongoDB fallback at", localFallbackUri);
       try {
         const connection = await mongoose.connect(localFallbackUri, {
-          useNewUrlParser: true,
-          useUnifiedTopology: true,
           serverSelectionTimeoutMS: 10000,
         });
         console.log("✅ MongoDB Connected using local fallback");

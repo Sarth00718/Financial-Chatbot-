@@ -11,7 +11,7 @@ import {
   ComposedChart, ReferenceLine,
   XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer
 } from 'recharts';
-import { Box, Typography, Paper } from '@mui/material';
+import { Box, Typography, Paper, useTheme } from '@mui/material';
 
 const COLOURS = ['#2563EB', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#F97316'];
 
@@ -260,6 +260,14 @@ const normalizeVisualization = (vis) => {
 };
 
 const DataVisualization = ({ content, data }) => {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+  const tooltipStyle = {
+    borderRadius: 8,
+    border: `1px solid ${theme.palette.divider}`,
+    backgroundColor: theme.palette.background.paper,
+    color: theme.palette.text.primary,
+  };
   const visualizations = useMemo(() => {
     if (data) {
       if (Array.isArray(data) && data.length > 0) {
@@ -299,7 +307,7 @@ const DataVisualization = ({ content, data }) => {
             {vis.title || 'Data Visualization'}
           </Typography>
           <Box sx={{ width: '100%', height: 300 }}>
-            {renderChart(vis)}
+            {renderChart(vis, tooltipStyle)}
           </Box>
         </Paper>
       ))}
@@ -307,7 +315,7 @@ const DataVisualization = ({ content, data }) => {
   );
 };
 
-const renderChart = (vis) => {
+const renderChart = (vis, tooltipStyle) => {
   const chartData = [];
   const xAxisLabels = vis.xAxis || [];
   
@@ -319,9 +327,11 @@ const renderChart = (vis) => {
     chartData.push(dataPoint);
   });
 
+  const hasData = chartData.length > 0 && vis.series.some(s => Array.isArray(s.data) && s.data.length > 0);
+  if (!hasData) return null;
+
   const type = vis.type?.toLowerCase() || 'line';
   const margin = { top: 10, right: 30, left: 0, bottom: 0 };
-  const tooltipStyle = { borderRadius: 8, border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: 'rgba(13,22,41,0.95)', color: '#fff' };
   
   const formatter = (val) => new Intl.NumberFormat('en-IN', { notation: 'compact' }).format(val);
 

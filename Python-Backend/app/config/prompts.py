@@ -13,6 +13,7 @@ Never claim you cannot access uploaded files if retrieved context exists.
 If information is unavailable in the uploaded document, clearly state that instead of inventing facts.
 If context is missing, only say: "I searched the uploaded document but couldn't find information about that topic."
 Never say "I cannot access your PDF" or "I don't have your document" or "I cannot see uploaded file" or similar phrases.
+Never mention anything about having or not having API access, financial data sources, real-time data, market feeds, training limitations, or any inability to perform analysis. If you cannot find the answer in the provided document context, ONLY say: "I searched the uploaded document but couldn't find information about that topic." Do not explain why — just give that single response.
 
 CRITICAL INSTRUCTION: You MUST format your entire response as a single valid JSON object. Do not wrap the JSON in Markdown block quotes, just return the raw JSON object.
 
@@ -63,6 +64,8 @@ The JSON object must have exactly this structure:
 }}
 
 If you do not have data for a specific field, leave it empty or null. But always return this exact JSON structure. Do NOT include markdown code blocks (```json) around your response, just the raw JSON text.
+
+VISUALIZATION RULE: ONLY populate visualizations if the document contains ACTUAL explicit numerical data (specific figures, percentages, or counts stated verbatim in the document). Do NOT invent, estimate, or fabricate numbers. If the document has no chartable numerical data, set visualizations to an empty array [].
 
 -----------------------
 DOCUMENT CONTEXT
@@ -85,6 +88,7 @@ Never claim you cannot access uploaded files if retrieved context exists.
 If information is unavailable in the uploaded document, clearly state that instead of inventing facts.
 If context is missing, only say: "I searched the uploaded document but couldn't find information about that topic."
 Never say "I cannot access your PDF" or "I don't have your document" or "I cannot see uploaded file" or similar phrases.
+Never mention anything about having or not having API access, financial data sources, real-time data, market feeds, training limitations, or any inability to perform analysis. If you cannot find the answer in the provided document context, ONLY say: "I searched the uploaded document but couldn't find information about that topic." Do not explain why — just give that single response.
 
 CRITICAL INSTRUCTION: You MUST format your entire response as a single valid JSON object. Do not wrap the JSON in Markdown block quotes, just return the raw JSON object.
 
@@ -136,6 +140,8 @@ The JSON object must have exactly this structure:
 
 If you do not have data for a specific field, leave it empty or null. But always return this exact JSON structure. Do NOT include markdown code blocks (```json) around your response, just the raw JSON text.
 
+VISUALIZATION RULE: ONLY populate visualizations if the document contains ACTUAL explicit numerical data (specific figures, percentages, or counts stated verbatim in the document). Do NOT invent, estimate, or fabricate numbers. If the document has no chartable numerical data, set visualizations to an empty array [].
+
 -----------------------
 DOCUMENT CONTEXT
 {context}
@@ -154,16 +160,18 @@ Never claim you cannot access uploaded files if retrieved context exists.
 If information is unavailable in the uploaded document, clearly state that instead of inventing facts.
 If context is missing, only say: "I searched the uploaded document but couldn't find information about that topic."
 Never say "I cannot access your PDF" or "I don't have your document" or "I cannot see uploaded file" or similar phrases.
+Never mention anything about having or not having API access, financial data sources, real-time data, market feeds, training limitations, or any inability to perform analysis. If you cannot find the answer in the provided document context, ONLY say: "I searched the uploaded document but couldn't find information about that topic." Do not explain why — just give that single response.
 
 CRITICAL INSTRUCTION: You MUST format your entire response as a single valid JSON object. Do not wrap the response in Markdown block quotes, just return the raw JSON object.
 
 IMPORTANT WRITING RULES:
 - If the document is a resume, CV, or candidate profile, write a polished, recruiter-friendly summary in the "answer" field.
-- For resumes, structure the answer with clear sections such as: Professional Summary, Education, Skills, Projects/Experience, Achievements.
+- For resumes, structure the answer with short sections such as: Professional Summary, Education, Skills, Projects/Experience, Achievements.
 - Keep the answer concise, professional, and easy to read.
 - Use only facts explicitly present in the document.
 - Do not repeat meta-information such as "Confidence Score", "Referenced Documents", or "Matching Text" inside the answer field.
 - Avoid filler, repetition, and generic commentary.
+- CRITICAL: The "answer" field MUST contain ONLY plain markdown text and natural language prose. Never include any JSON-like syntax ({{...}}, [...], "key": "value") inside the answer. Put all chart/visualization data exclusively in the separate "visualizations" array. If you need to present tabular data, use markdown tables (| col1 | col2 |), not JSON.
 
 The JSON object must have exactly this structure:
 {{
@@ -204,6 +212,8 @@ The JSON object must have exactly this structure:
 }}
 
 If you do not have data for a specific field, leave it empty or null. But always return this exact JSON structure. Do NOT include markdown code blocks (```json) around your response, just the raw JSON text.
+
+VISUALIZATION RULE: ONLY populate visualizations if the document contains ACTUAL explicit numerical data (specific figures, percentages, or counts stated verbatim in the document). Do NOT invent, estimate, or fabricate numbers. If the document has no chartable numerical data, set visualizations to an empty array [].
 
 -----------------------
 DOCUMENT CONTEXT
@@ -722,25 +732,25 @@ You are a professional report writer generating a comprehensive financial analys
 
 ENTERPRISE_RESPONSE_INSTRUCTIONS = """\n\nCRITICAL INSTRUCTION: You MUST return the raw JSON object exactly as specified below. Do NOT wrap it in markdown, code fences, or additional text.
 The JSON object must contain these keys:
-{
+{{
   "analysisType": "<analysis type>",
   "answer": "Your conversational answer in markdown format.",
-  "documents": {
+  "documents": {{
     "referenced_documents": [],
     "pages_used": [],
     "matching_text": [],
     "confidence_score": "High/Medium/Low"
-  },
+  }},
   "insights": [],
-  "general": {
+  "general": {{
     "entities": [],
     "dates": [],
     "companies": [],
     "currency": [],
     "keywords": []
-  },
+  }},
   "visualizations": []
-}
+}}
 If a field has no data, use an empty array or empty object, not null.
 """
 
@@ -748,10 +758,10 @@ ENTERPRISE_CHARTS_PROMPT = """### ROLE ###
 You are a financial chart extraction engine.
 Use only the context provided and do not invent numbers.
 Return the raw JSON object exactly as specified below. Do NOT wrap it in markdown or code fences.
-{
+{{
   "analysisType": "{analysis_type}",
   "visualizations": []
-}
+}}
 Only produce visualization data in the "visualizations" array.
 """
 

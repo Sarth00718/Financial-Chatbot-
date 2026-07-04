@@ -194,8 +194,7 @@ export const toggleUserStatus = asyncHandler(async (req, res) => {
 
   // If blocking user, clear their refresh token
   if (!isActive) {
-    user.refreshToken = undefined;
-    await user.save();
+    await User.findByIdAndUpdate(userId, { $unset: { refreshToken: 1 } });
   }
 
   return res.status(200).json(

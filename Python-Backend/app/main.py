@@ -3,6 +3,10 @@ Main Application Entry Point
 FastAPI application setup and configuration
 """
 
+import os
+import asyncio
+import logging
+from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 
 # Load environment variables first
@@ -13,83 +17,93 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router
 from app.config.settings import settings
 
-# Create FastAPI application
+# ── Suppress asyncio CancelledError noise on Windows clean shutdown ──────────
+# On Windows, uvicorn raises CancelledError during Ctrl+C shutdown. This is
+# normal behavior — not an application error. We silence the asyncio logger
+# for CancelledError to keep the console clean.
+logging.getLogger("asyncio").setLevel(logging.CRITICAL)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan: startup and shutdown logic."""
+    # ── Startup ──────────────────────────────────────────────────────────────
+    print("\n" + "=" * 60)
+    print("Financial Analysis Python Service Starting...")
+    print("=" * 60)
+    print(f"Vector Store Path : {settings.VECTOR_STORE_PATH}")
+    print(f"LLM Model         : {settings.LLM_MODEL}")
+    print(f"Embedding Model   : {settings.EMBEDDING_MODEL}")
+    print(f"Chunk Size        : {settings.CHUNK_SIZE}")
+    print(f"Top K Results     : {settings.TOP_K_RESULTS}")
+    print("=" * 60)
+    print("Service ready to accept requests")
+    print("=" * 60 + "\n")
+
+    yield  # ← application runs here
+
+    # ── Shutdown ─────────────────────────────────────────────────────────────
+    print("\n" + "=" * 60)
+    print("Financial Analysis Python Service Shutting Down...")
+    print("=" * 60 + "\n")
+
+
+# ── App factory ───────────────────────────────────────────────────────────────
 app = FastAPI(
     title="Financial Analysis AI Service",
-    description="Local RAG-based Financial Document Query System",
+    description="RAG-based Financial Document Query System",
     version="2.0.0",
-    docs_url="/docs",  # Swagger UI
-    redoc_url="/redoc"  # ReDoc UI
+    docs_url="/docs",
+    redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
-# Configure CORS (Cross-Origin Resource Sharing)
-# Allows frontend to communicate with backend
+# ── CORS ─────────────────────────────────────────────────────────────────────
+# Allow the Node.js backend and the React dev server.
+# In production set NODE_BACKEND_ORIGIN and FRONTEND_ORIGIN in the .env.
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "")
+_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+
+if not _origins:
+    # Default: allow local dev origins
+    _origins = [
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify exact origins
+    allow_origins=_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include API routes
+# ── Routes ────────────────────────────────────────────────────────────────────
 app.include_router(router, prefix="", tags=["AI Service"])
 
 
 @app.get("/")
 async def root():
-    """
-    Root endpoint
-    Returns basic service information
-    """
     return {
         "service": "Financial Analysis Python Service",
         "version": "2.0.0",
         "status": "running",
-        "description": "Local RAG-based Financial Document Query System",
         "docs": "/docs",
-        "health": "/health"
+        "health": "/health",
     }
 
 
-@app.on_event("startup")
-async def startup_event():
-    """
-    Startup event handler
-    Runs when the application starts
-    """
-    print("\n" + "="*60)
-    print("Financial Analysis Python Service Starting...")
-    print("="*60)
-    print(f"Vector Store Path: {settings.VECTOR_STORE_PATH}")
-    print(f"LLM Model: {settings.LLM_MODEL}")
-    print(f"Embedding Model: {settings.EMBEDDING_MODEL}")
-    print(f"Chunk Size: {settings.CHUNK_SIZE}")
-    print(f"Top K Results: {settings.TOP_K_RESULTS}")
-    print("="*60)
-    print("Service ready to accept requests")
-    print("="*60 + "\n")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """
-    Shutdown event handler
-    Runs when the application stops
-    """
-    print("\n" + "="*60)
-    print("Financial Analysis Python Service Shutting Down...")
-    print("="*60 + "\n")
-
-
-# For local development
+# ── Local dev runner ──────────────────────────────────────────────────────────
 if __name__ == "__main__":
     import uvicorn
-    
+
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",
         port=settings.PORT,
         reload=True,
-        log_level="info"
+        log_level="info",
     )

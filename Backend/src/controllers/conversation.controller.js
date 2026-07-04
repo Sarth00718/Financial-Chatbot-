@@ -13,6 +13,7 @@ import { FEATURE_MODES } from "../config/constants.js";
 import mongoose from "mongoose";
 import axios from "axios";
 
+const VALID_FEATURE_MODES = new Set(Object.values(FEATURE_MODES));
 const ENTERPRISE_FEATURE_MODES = new Set(['Document_Analysis', 'Analytical_Insights']);
 
 /**
@@ -128,11 +129,14 @@ export const sendChatMessage = asyncHandler(async (req, res) => {
   }
 
   // Save user's message with the feature mode used
+  const sanitisedFeatureMode = VALID_FEATURE_MODES.has(conversation.featureUsed)
+    ? conversation.featureUsed : 'Smart_Chat';
+
   const userMessage = await Message.create({
     conversation: conversationId,
     role: "user",
     content: content,
-    featureUsed: conversation.featureUsed,
+    featureUsed: sanitisedFeatureMode,
   });
 
   // Get recent chat history (last 20 messages)
@@ -147,7 +151,8 @@ export const sendChatMessage = asyncHandler(async (req, res) => {
     .map((doc) => doc.vectorNamespace);
 
   // Call Python AI service for response
-  const featureMode = conversation.featureUsed || 'Smart_Chat';
+  const featureMode = VALID_FEATURE_MODES.has(conversation.featureUsed)
+    ? conversation.featureUsed : 'Smart_Chat';
   const isEnterpriseMode = ENTERPRISE_FEATURE_MODES.has(featureMode);
 
   let aiResponse = {};
@@ -219,6 +224,9 @@ export const sendChatMessage = asyncHandler(async (req, res) => {
     visualizationsData: aiVisualizations,
     analysisType: aiAnalysisType,
   });
+
+  // Bump conversation updatedAt so it moves to top of sidebar
+  await Conversation.findByIdAndUpdate(conversationId, { updatedAt: new Date() });
 
   return res
     .status(201)
@@ -329,9 +337,10 @@ export const searchConversations = asyncHandler(async (req, res) => {
   const skip = (parseInt(page) - 1) * parseInt(limit);
 
   // Search in conversation titles
+  const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const titleMatches = await Conversation.find({
     user: req.user._id,
-    title: { $regex: query, $options: "i" }, // Case-insensitive
+    title: { $regex: escapedQuery, $options: "i" },
   })
     .select("title featureUsed createdAt updatedAt")
     .sort({ updatedAt: -1 })
@@ -340,7 +349,7 @@ export const searchConversations = asyncHandler(async (req, res) => {
 
   // Search in message content
   const messageMatches = await Message.find({
-    content: { $regex: query, $options: "i" },
+    content: { $regex: escapedQuery, $options: "i" },
   })
     .select("conversation")
     .lean();

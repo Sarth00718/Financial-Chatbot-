@@ -1,570 +1,423 @@
-/**
- * Message
- * Renders one chat message (user / assistant / system) — pure MUI.
- * Enterprise AI modes (Document_Analysis, Analytical_Insights) are routed
- * through AnalysisResultView for SWOT cards, KPI tiles, and charts.
- */
-
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
-  Box, Stack, Avatar, Paper, Typography, IconButton, TextField, Button, Tooltip, Chip,
+  Box, Avatar, Typography, Paper, IconButton, Tooltip, Menu, MenuItem,
+  ListItemIcon, ListItemText, Chip, Collapse, alpha, Divider,
 } from '@mui/material';
+import DataVisualization from './DataVisualization.jsx';
 import {
-  Person, Insights, InfoOutlined, Edit, Delete, Check, Close,
+  ContentCopy, Edit, Delete, Refresh, ThumbUp, ThumbDown,
+  Bookmark, Share, Check, MoreHoriz, SmartToy, Person,
+  Description, TrendingUp, Forum,
 } from '@mui/icons-material';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { SpeakerButton } from './VoiceInput';
-import DataVisualization from './DataVisualization';
-import CitationPanel from './CitationPanel';
-import AnalysisResultView from './AnalysisResultView';
-import { messageAPI } from '../utils/api';
-import { useAuth } from '../contexts/AuthContext';
+import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
+import { messageAPI } from '../utils/api';
 
-/* Modes that get the full enterprise result view */
-const ENTERPRISE_MODES = new Set(['Document_Analysis', 'Analytical_Insights']);
-
-const parseJsonFromText = (text) => {
-  if (!text || typeof text !== 'string') return null;
-
-  const normalizeJsonNumberCommas = (text) => {
-    let result = '';
-    let inString = false;
-    let escape = false;
-
-    for (let i = 0; i < text.length; i += 1) {
-      const char = text[i];
-      if (escape) {
-        result += char;
-        escape = false;
-        continue;
-      }
-      if (char === '\\') {
-        result += char;
-        escape = true;
-        continue;
-      }
-      if (char === '"') {
-        result += char;
-        inString = !inString;
-        continue;
-      }
-
-      if (!inString && char === ',') {
-        const prev = text[i - 1];
-        const next = text[i + 1];
-        if (prev && next && /\d/.test(prev) && /\d/.test(next)) {
-          continue;
-        }
-      }
-
-      result += char;
-    }
-
-    return result;
-  };
-
-  const tryParse = (value) => {
-    try {
-      return JSON.parse(value);
-    } catch {
-      const cleaned = normalizeJsonNumberCommas(value);
-      if (cleaned === value) return null;
-      try {
-        return JSON.parse(cleaned);
-      } catch {
-        return null;
-      }
-    }
-  };
-
-  const findMatchingSegment = (source, startIndex) => {
-    let depth = 0;
-    let inString = false;
-    let escape = false;
-    const openChar = source[startIndex];
-    const closeChar = openChar === '[' ? ']' : openChar === '{' ? '}' : null;
-    if (!closeChar) return null;
-
-    for (let i = startIndex; i < source.length; i += 1) {
-      const char = source[i];
-      if (escape) {
-        escape = false;
-        continue;
-      }
-      if (char === '\\') {
-        escape = true;
-        continue;
-      }
-      if (char === '"') {
-        inString = !inString;
-        continue;
-      }
-      if (inString) continue;
-      if (char === openChar) depth += 1;
-      else if (char === closeChar) {
-        depth -= 1;
-        if (depth === 0) {
-          return source.slice(startIndex, i + 1);
-        }
-      }
-    }
-    return null;
-  };
-
-  const cleaned = text.trim();
-  let parsed = tryParse(cleaned);
-  if (parsed) return parsed;
-
-  const fenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fenceMatch) {
-    parsed = tryParse(fenceMatch[1].trim());
-    if (parsed) return parsed;
-  }
-
-  const firstBrace = cleaned.indexOf('{');
-  const firstBracket = cleaned.indexOf('[');
-  const startIndex = firstBrace !== -1 ? firstBrace : firstBracket;
-  if (startIndex !== -1) {
-    const segment = findMatchingSegment(cleaned, startIndex);
-    parsed = segment ? tryParse(segment) : null;
-    if (parsed) return parsed;
-  }
-
-  const fieldPattern = /["']?visualizations["']?\s*:\s*\[/gi;
-  let match;
-  while ((match = fieldPattern.exec(cleaned))) {
-    const arrayStart = cleaned.indexOf('[', match.index);
-    if (arrayStart === -1) continue;
-    const segment = findMatchingSegment(cleaned, arrayStart);
-    const arrayValue = segment ? tryParse(segment) : null;
-    if (Array.isArray(arrayValue)) {
-      return { visualizations: arrayValue };
-    }
-  }
-
-  return null;
+const roleConfig = {
+  user: {
+    color: '#2563EB',
+    bgColor: 'rgba(37,99,235,0.08)',
+    borderColor: 'rgba(37,99,235,0.15)',
+    icon: Person,
+    align: 'right',
+  },
+  assistant: {
+    color: '#7C3AED',
+    bgColor: 'rgba(124,58,237,0.06)',
+    borderColor: 'rgba(124,58,237,0.12)',
+    icon: SmartToy,
+    align: 'left',
+  },
+  system: {
+    color: '#64748B',
+    bgColor: 'rgba(100,116,139,0.08)',
+    borderColor: 'rgba(100,116,139,0.12)',
+    icon: null,
+    align: 'center',
+  },
 };
 
-const extractStringField = (text, field) => {
-  const fieldRegex = new RegExp(`["]?${field}["]?\s*:\s*`, 'i');
-  const fieldMatch = text.match(fieldRegex);
-  if (!fieldMatch) return null;
-
-  let pos = fieldMatch.index + fieldMatch[0].length;
-  while (pos < text.length && /\s/.test(text[pos])) pos += 1;
-  if (pos >= text.length) return null;
-
-  const quote = text[pos];
-  if (quote === '"' || quote === "'") {
-    pos += 1;
-    let value = '';
-    let escaped = false;
-    for (; pos < text.length; pos += 1) {
-      const char = text[pos];
-      if (escaped) {
-        value += char;
-        escaped = false;
-        continue;
-      }
-      if (char === '\\') {
-        escaped = true;
-        continue;
-      }
-      if (char === quote) {
-        return value;
-      }
-      value += char;
-    }
-    return value;
-  }
-
-  // fallback to non-quoted value
-  let value = '';
-  while (pos < text.length && !/[\r\n,}]/.test(text[pos])) {
-    value += text[pos];
-    pos += 1;
-  }
-  return value.trim() || null;
+const featureMeta = {
+  Smart_Chat: { icon: Forum, label: 'Smart Chat', color: '#2563EB' },
+  Document_Analysis: { icon: Description, label: 'Analysis', color: '#16A34A' },
+  Analytical_Insights: { icon: TrendingUp, label: 'Insights', color: '#7C3AED' },
+  General_Conversation: { icon: Forum, label: 'General', color: '#64748B' },
 };
 
-const isNonEmptyObject = (value) =>
-  value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0;
-
-const hasStructuredFields = (value) => {
-  if (!isNonEmptyObject(value)) return false;
-  return Object.values(value).some((field) => {
-    if (Array.isArray(field)) return field.length > 0;
-    if (isNonEmptyObject(field)) return true;
-    return typeof field === 'string' ? field.trim().length > 0 : Boolean(field);
-  });
-};
-
-const normalizeFeatureMode = (value) => (typeof value === 'string' ? value.trim() : 'Smart_Chat');
-
-const getAssistantAnswer = (content) => {
-  const parsed = parseJsonFromText(content);
-  if (parsed && typeof parsed === 'object') {
-    if (typeof parsed.answer === 'string' && parsed.answer.trim().length > 0) {
-      // Strip any JSON wrapper artifacts the LLM prepended to the answer text
-      let ans = parsed.answer
-        .replace(/^\{\s*["']?answer["']?\s*:\s*["']/i, '')
-        .replace(/\n+Visualizations?:[\s\S]*$/i, '')
-        .replace(/###\s*.*?\s*###\n*/g, '')
-        .trim();
-      return ans;
-    }
+const CodeBlock = ({ node, inline, className, children, ...props }) => {
+  if (inline) {
+    return <code className="prose-chat code" {...props}>{children}</code>;
   }
-
-  // Fallback: try extracting the answer field from raw text
-  const text = extractStringField(content, 'answer');
-  if (text) return text;
-
-  // If content itself starts with { it is raw JSON — return empty (AnalysisResultView will handle it)
-  if (content && content.trimStart().startsWith('{')) return '';
-
-  return content;
-};
-
-const getVisualizationPayload = (message) => {
-  if (Array.isArray(message.visualizationsData) && message.visualizationsData.length > 0) {
-    return message.visualizationsData;
-  }
-
-  if (message.visualizationsData && typeof message.visualizationsData === 'object') {
-    const payload = message.visualizationsData.visualizations || message.visualizationsData.data;
-    if (Array.isArray(payload) && payload.length > 0) {
-      return payload;
-    }
-  }
-
-  const parsed = parseJsonFromText(message.content);
-  if (parsed) {
-    if (Array.isArray(parsed.visualizations) && parsed.visualizations.length > 0) {
-      return parsed.visualizations;
-    }
-    if (Array.isArray(parsed)) {
-      return parsed;
-    }
-    if (parsed.visualizations && typeof parsed.visualizations === 'string') {
-      const nested = parseJsonFromText(parsed.visualizations);
-      if (Array.isArray(nested) && nested.length > 0) {
-        return nested;
-      }
-    }
-  }
-
-  return [];
-};
-
-const FEATURE_MODE_META = {
-  Smart_Chat: { label: 'Smart Chat', color: '#2563EB' },
-  Document_Analysis: { label: 'Document Analysis', color: '#16A34A' },
-  Analytical_Insights: { label: 'Analytical Insights', color: '#7C3AED' },
-  General_Conversation: { label: 'General Conversation', color: '#64748B' },
-};
-
-const Message = ({ message, onMessageUpdate, onMessageDelete, onRegenerateResponse, featureMode }) => {
-  const { user } = useAuth();
-  const { role, content, createdAt, citations } = message;
-  const [isEditing, setIsEditing] = useState(false);
-  const [editContent, setEditContent] = useState(content);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [isRegenerating, setIsRegenerating] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
-  const isUser = role === 'user';
-  const isAssistant = role === 'assistant';
-  const isSystem = role === 'system';
-
-  const mode = normalizeFeatureMode(featureMode || message.featureUsed || 'Smart_Chat');
-  const modeMeta = FEATURE_MODE_META[mode] || FEATURE_MODE_META.Smart_Chat;
-
-  const parsedJson = parseJsonFromText(content) || {};
-  const hasEnterprisePayload = Boolean(
-    parsedJson && typeof parsedJson === 'object' && (
-      parsedJson.insights || parsedJson.visualizations || parsedJson.general || parsedJson.documents || parsedJson.analysisType
-    )
+  const text = String(children).replace(/\n$/, '');
+  return (
+    <Box sx={{ position: 'relative', my: 1.5 }}>
+      <Box
+        sx={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          px: 1.5, py: 0.5, borderRadius: '8px 8px 0 0',
+          bgcolor: alpha('#0A0D14', 0.06), border: '1px solid', borderColor: 'divider', borderBottom: 'none',
+        }}
+      >
+        <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.675rem' }}>
+          {(className || '').replace('language-', '') || 'code'}
+        </Typography>
+        <IconButton
+          size="small"
+          onClick={() => { navigator.clipboard.writeText(text); toast.success('Copied!'); }}
+          sx={{ width: 24, height: 24 }}
+        >
+          <ContentCopy sx={{ fontSize: 12 }} />
+        </IconButton>
+      </Box>
+      <Box
+        component="pre"
+        sx={{
+          m: 0, borderRadius: '0 0 8px 8px',
+          bgcolor: alpha('#0A0D14', 0.04),
+          border: '1px solid', borderColor: 'divider',
+          p: 1.5, overflowX: 'auto',
+        }}
+      >
+        <Box component="code" sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.8125rem', lineHeight: 1.6 }}>
+          {children}
+        </Box>
+      </Box>
+    </Box>
   );
-  const isEnterpriseMode = ENTERPRISE_MODES.has(mode) || hasEnterprisePayload;
+};
 
-  // For enterprise modes or structured enterprise payloads: pass the full payload to AnalysisResultView
-  // When content is stored as full JSON (new path), parsedJson has everything.
-  // When content is just the answer string with separate fields on message (old path), merge them.
-  const enterpriseResult = (() => {
-    // New path: content IS the full structured JSON payload
-    if (parsedJson && parsedJson.analysisType) {
-      return {
-        answer: parsedJson.answer ?? '',
-        analysisType: parsedJson.analysisType,
-        documents: parsedJson.documents ?? {},
-        insights: parsedJson.insights ?? [],
-        general: parsedJson.general ?? null,
-        visualizations: parsedJson.visualizations ?? [],
-        metadata: parsedJson.metadata ?? {},
-        citations: parsedJson.citations ?? citations ?? [],
-      };
+const Message = ({ message, featureMode, onMessageUpdate, onMessageDelete, onRegenerateResponse }) => {
+  const [menuAnchor, setMenuAnchor] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState('');
+  const [copied, setCopied] = useState(false);
+  const config = roleConfig[message.role] || roleConfig.system;
+  const isUser = message.role === 'user';
+  const isAssistant = message.role === 'assistant';
+  const isSystem = message.role === 'system';
+  const Icon = config.icon;
+  const FeatureIcon = featureMeta[featureMode]?.icon || Forum;
+
+  // Parse JSON-stringified content from any mode (enterprise modes, etc.)
+  // Extract the answer text for display; structured data is in separate fields.
+  const displayContent = (() => {
+    if (typeof message.content !== 'string') return '';
+    if (message.content.trim().startsWith('{')) {
+      try {
+        const parsed = JSON.parse(message.content);
+        if (parsed && typeof parsed.answer === 'string') return parsed.answer;
+      } catch { /* fall through to lenient extraction */ }
+      // Lenient: find answer field closing quote using state machine
+      try {
+        const s = message.content;
+        const ansKey = '"answer":';
+        const ansIdx = s.indexOf(ansKey);
+        if (ansIdx !== -1) {
+          const afterColon = s.indexOf('"', ansIdx + ansKey.length);
+          if (afterColon !== -1) {
+            let i = afterColon + 1;
+            let escaped = false;
+            for (; i < s.length; i++) {
+              const ch = s[i];
+              if (escaped) { escaped = false; continue; }
+              if (ch === '\\') { escaped = true; continue; }
+              if (ch === '"') break;
+            }
+            const raw = s.slice(afterColon + 1, i);
+            // Attempt to unescape JSON escapes
+            try { return JSON.parse('"' + raw + '"'); } catch { return raw; }
+          }
+        }
+      } catch { /* give up */ }
     }
-    // Old path or mixed: content is answer text, structured data on message fields
-    return {
-      answer: parsedJson.answer ?? content,
-      analysisType: parsedJson.analysisType ?? message.analysisType ?? null,
-      documents: parsedJson.documents ?? message.documentsData ?? {},
-      insights: parsedJson.insights ?? message.insightsData ?? [],
-      general: parsedJson.general ?? message.generalData ?? null,
-      visualizations: parsedJson.visualizations ?? message.visualizationsData ?? [],
-      metadata: parsedJson.metadata ?? {},
-      citations: parsedJson.citations ?? citations ?? [],
-    };
+    return message.content;
   })();
 
-  const visualizationPayload = getVisualizationPayload(message);
+  // Strip any JSON-like object literals (e.g. { "title": ... }) that the AI
+  // accidentally embedded in the answer text despite prompt instructions.
+  const cleanedContent = (() => {
+    let txt = displayContent;
+    // Remove JSON objects that appear mid-sentence: { "key": value, ... }
+    // This matches { ... } with at least one quoted key inside.
+    txt = txt.replace(/\{\s*"[^"]+"\s*:\s*[^}]+\}/g, '');
+    // Collapse multiple blank lines into one
+    txt = txt.replace(/\n{3,}/g, '\n\n');
+    return txt.trim();
+  })();
 
-  useEffect(() => { /* reset nothing; no tab state needed */ }, [content, mode]);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(cleanedContent);
+    setCopied(true);
+    toast.success('Copied to clipboard');
+    setTimeout(() => setCopied(false), 2000);
+  };
 
-  const handleEdit = async () => {
-    if (!editContent.trim() || editContent === content) {
-      setIsEditing(false);
-      setEditContent(content);
-      return;
-    }
+  const handleEdit = () => {
+    setEditText(cleanedContent);
+    setIsEditing(true);
+    setMenuAnchor(null);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editText.trim()) return;
+    const edited = editText.trim();
     try {
-      await messageAPI.update(message._id, editContent.trim());
-      onMessageUpdate(message._id, editContent.trim());
+      const res = await messageAPI.editAndRegenerate(message._id, edited);
+      const data = res.data?.data;
+      if (data?.assistantMessage) {
+        onRegenerateResponse(data);
+      } else {
+        // AI regeneration failed — still update the user message locally
+        onMessageUpdate(message._id, edited);
+        toast('Message saved. AI regeneration unavailable.', { icon: '⚠️' });
+      }
       setIsEditing(false);
-      toast.success('Message updated');
-    } catch (error) {
-      console.error('Failed to update message:', error);
-      toast.error('Failed to update message');
-      setEditContent(content);
+    } catch (err) {
+      // API call itself failed — keep edit open but show error
+      toast.error('Failed to save. Try again.');
     }
   };
 
-  const handleEditAndRegenerate = async () => {
-    if (!editContent.trim() || editContent === content) {
-      setIsEditing(false);
-      setEditContent(content);
-      return;
-    }
+  const handleDelete = async () => {
+    setMenuAnchor(null);
     try {
-      setIsRegenerating(true);
-      const response = await messageAPI.editAndRegenerate(message._id, editContent.trim());
-      onRegenerateResponse?.(response.data.data);
-      setIsEditing(false);
-      toast.success('Response regenerated');
-    } catch (error) {
-      console.error('Failed to regenerate response:', error);
-      toast.error('Failed to regenerate response');
-      setEditContent(content);
-    } finally {
-      setIsRegenerating(false);
-    }
-  };
-
-  const handleDeleteClick = () => {
-    if (!showDeleteConfirm) {
-      setShowDeleteConfirm(true);
-      return;
-    }
-    handleConfirmDelete();
-  };
-
-  const handleConfirmDelete = async () => {
-    try {
-      setIsDeleting(true);
       await messageAPI.delete(message._id);
       onMessageDelete(message._id);
       toast.success('Message deleted');
-    } catch (error) {
-      console.error('Failed to delete message:', error);
+    } catch (err) {
       toast.error('Failed to delete message');
-      setIsDeleting(false);
-      setShowDeleteConfirm(false);
     }
   };
 
-  const handleCancelEdit = () => {
-    setIsEditing(false);
-    setEditContent(content);
+  const handleRegenerate = async () => {
+    setMenuAnchor(null);
+    try {
+      const res = await messageAPI.editAndRegenerate(message._id, message.content);
+      if (res.data?.data) onRegenerateResponse(res.data.data);
+    } catch (err) {
+      toast.error('Failed to regenerate');
+    }
   };
 
-  const formatTime = (timestamp) => {
-    if (!timestamp) return '';
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMins = Math.floor((now - date) / 60000);
-    const diffHours = Math.floor((now - date) / 3600000);
-    const diffDays = Math.floor((now - date) / 86400000);
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-  };
-
-  const assistantText = isAssistant ? getAssistantAnswer(content) : content;
-
-  if (isDeleting) return null;
+  if (isSystem) {
+    return (
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', my: 2, px: 4 }}>
+          <Paper
+            variant="outlined"
+            sx={{
+              px: 2.5, py: 1, borderRadius: 3,
+              bgcolor: alpha('#64748B', 0.06),
+              borderColor: alpha('#64748B', 0.15),
+              maxWidth: '90%',
+            }}
+          >
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', textAlign: 'center', display: 'block' }}>
+              {message.content}
+            </Typography>
+          </Paper>
+        </Box>
+      </motion.div>
+    );
+  }
 
   return (
-    <Stack
-      direction="row"
-      justifyContent={isUser ? 'flex-end' : 'flex-start'}
-      spacing={1.5}
-      sx={{ mb: 3 }}
-      className="message-row"
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: 'easeOut' }}
     >
-      {!isUser && (
-        <Avatar
-          sx={{
-            width: 36, height: 36, alignSelf: 'flex-end',
-            bgcolor: isAssistant ? 'primary.main' : 'action.hover',
-            background: isAssistant ? 'linear-gradient(135deg, #2563EB, #1D4ED8)' : undefined,
-          }}
-        >
-          {isAssistant ? <Insights sx={{ fontSize: 18 }} /> : <InfoOutlined sx={{ fontSize: 16, color: 'text.secondary' }} />}
-        </Avatar>
-      )}
+      <Box
+        sx={{
+          display: 'flex',
+          gap: 1.5,
+          mb: 2.5,
+          flexDirection: isUser ? 'row-reverse' : 'row',
+          alignItems: 'flex-start',
+          px: { xs: 0.5, sm: 1 },
+        }}
+      >
+        {/* Avatar */}
+        <Tooltip title={isUser ? 'You' : 'FinChatBot AI'}>
+          <Avatar
+            sx={{
+              width: 32, height: 32, flexShrink: 0,
+              bgcolor: isUser ? 'primary.main' : alpha('#7C3AED', 0.9),
+              boxShadow: `0 2px 8px ${alpha(config.color, 0.25)}`,
+            }}
+          >
+            {Icon ? <Icon sx={{ fontSize: 16 }} /> : <SmartToy sx={{ fontSize: 16 }} />}
+          </Avatar>
+        </Tooltip>
 
-      <Box sx={{ maxWidth: isEnterpriseMode ? { xs: '96%', md: '88%' } : { xs: '82%', md: '68%' }, display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-end' : 'flex-start' }}>
-        {isUser && (
-          <Typography variant="caption" sx={{ color: 'text.secondary', mb: 0.5, textAlign: 'right' }}>
-            {user?.name || user?.email || 'You'}
-          </Typography>
-        )}
-        <Paper
-          variant="outlined"
-          sx={{
-            p: 1.75,
-            borderRadius: 3,
-            bgcolor: isUser ? 'primary.main' : isSystem ? 'action.hover' : 'background.paper',
-            color: isUser ? '#fff' : 'text.primary',
-            borderColor: isUser ? 'primary.main' : 'divider',
-            position: 'relative',
-            borderLeft: isAssistant ? `4px solid ${modeMeta.color}` : undefined,
-            boxShadow: isAssistant ? '0 8px 18px rgba(15, 23, 42, 0.06)' : undefined,
-            '&:hover .msg-actions': { opacity: 1 },
-          }}
-        >
-          <Stack direction="row" justifyContent="space-between" gap={1.5} alignItems="flex-start">
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              {isAssistant && (
-                <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1, flexWrap: 'wrap' }}>
-                  <Chip
-                    size="small"
-                    label={modeMeta.label}
-                    sx={{
-                      color: modeMeta.color,
-                      borderColor: modeMeta.color,
-                      bgcolor: `${modeMeta.color}1A`,
-                      fontWeight: 700,
-                      height: 24,
-                    }}
-                  />
-                  {featureMode && featureMode !== mode && (
-                    <Typography variant="caption" color="text.secondary">
-                      Conversation mode: {featureMode.replace(/_/g, ' ')}
-                    </Typography>
-                  )}
-                </Stack>
-              )}
+        {/* Bubble */}
+        <Box sx={{ maxWidth: '75%', minWidth: 0 }}>
+          {/* Label */}
+          <Box
+            sx={{
+              display: 'flex', alignItems: 'center', gap: 0.75,
+              mb: 0.5, justifyContent: isUser ? 'flex-end' : 'flex-start',
+            }}
+          >
+            <Typography variant="caption" fontWeight={700} sx={{ fontSize: '0.7rem', color: config.color }}>
+              {isUser ? 'You' : 'FinChatBot'}
+            </Typography>
+            {isAssistant && (
+              <Chip
+                icon={<FeatureIcon sx={{ fontSize: 11 }} />}
+                label={featureMeta[featureMode]?.label || 'AI'}
+                size="small"
+                sx={{
+                  height: 18, fontSize: '0.6rem',
+                  bgcolor: alpha(featureMeta[featureMode]?.color || '#7C3AED', 0.1),
+                  color: featureMeta[featureMode]?.color || '#7C3AED',
+                  '& .MuiChip-icon': { fontSize: 11, ml: 0.5 },
+                }}
+              />
+            )}
+          </Box>
 
-              {isEditing ? (
-                <Stack spacing={1}>
-                  <TextField
-                    multiline
-                    minRows={2}
-                    fullWidth
-                    autoFocus
-                    value={editContent}
-                    onChange={(e) => setEditContent(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && e.ctrlKey) handleEditAndRegenerate();
-                      if (e.key === 'Escape') handleCancelEdit();
-                    }}
-                    size="small"
-                  />
-                  <Stack direction="row" gap={1} alignItems="center" flexWrap="wrap">
-                    <Button size="small" variant="contained" startIcon={<Check fontSize="small" />} onClick={handleEditAndRegenerate} disabled={isRegenerating}>
-                      {isRegenerating ? 'Regenerating…' : 'Save & Regenerate'}
-                    </Button>
-                    <Button size="small" variant="text" onClick={handleEdit} disabled={isRegenerating}>Save Only</Button>
-                    <Button size="small" variant="text" color="inherit" onClick={handleCancelEdit} disabled={isRegenerating}>Cancel</Button>
-                  </Stack>
-                </Stack>
-              ) : isAssistant ? (
-                <Box sx={{ width: '100%' }}>
-                  {isEnterpriseMode ? (
-                    /* ── Enterprise AI mode: full structured card view ── */
-                    <>
-                      <AnalysisResultView
-                        result={enterpriseResult}
-                        accentColor={modeMeta.color}
-                      />
-                      <CitationPanel citations={citations} />
-                    </>
-                  ) : (
-                    /* ── Smart Chat / General Conversation: plain markdown ── */
-                    <Box className="prose-chat" sx={{
-                      '& table': { borderCollapse: 'collapse', width: '100%', my: 1, display: 'block', overflowX: 'auto' },
-                      '& th': { border: '1px solid', borderColor: 'divider', px: 1.5, py: 0.75, fontWeight: 700, fontSize: '0.8125rem', textAlign: 'left', bgcolor: 'action.hover' },
-                      '& td': { border: '1px solid', borderColor: 'divider', px: 1.5, py: 0.5, fontSize: '0.8125rem' },
-                      '& tr:nth-of-type(even)': { bgcolor: 'action.hover' },
-                      '& p': { my: 0.75 },
-                      '& ul,& ol': { pl: 3 },
-                    }}>
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{assistantText}</ReactMarkdown>
-                      <CitationPanel citations={citations} />
-                      {visualizationPayload.length > 0 && (
-                        <DataVisualization content="" data={visualizationPayload} />
-                      )}
-                    </Box>
-                  )}
+          {/* Content */}
+          <Paper
+            variant="outlined"
+            sx={{
+              p: 1.75,
+              borderRadius: isUser ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+              bgcolor: isUser
+                ? alpha('#2563EB', 0.08)
+                : alpha('#7C3AED', 0.04),
+              borderColor: isUser
+                ? alpha('#2563EB', 0.15)
+                : alpha('#7C3AED', 0.1),
+              position: 'relative',
+              transition: 'box-shadow 0.15s ease',
+              '&:hover': {
+                boxShadow: `0 2px 12px ${alpha(config.color, 0.06)}`,
+              },
+            }}
+          >
+            {isEditing ? (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <Box
+                  component="textarea"
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  sx={{
+                    width: '100%', minHeight: 80, p: 1,
+                    fontSize: '0.875rem', fontFamily: 'Inter, sans-serif',
+                    border: '1px solid', borderColor: 'divider',
+                    borderRadius: 1.5, resize: 'vertical',
+                    bgcolor: 'background.paper', color: 'text.primary',
+                    outline: 'none',
+                    '&:focus': { borderColor: 'primary.main' },
+                  }}
+                />
+                <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
+                  <IconButton size="small" onClick={() => setIsEditing(false)}>
+                    <Delete sx={{ fontSize: 16 }} />
+                  </IconButton>
+                  <IconButton size="small" color="primary" onClick={handleSaveEdit}>
+                    <Check sx={{ fontSize: 16 }} />
+                  </IconButton>
                 </Box>
-              ) : (
-                <Typography variant={isSystem ? 'caption' : 'body2'} sx={{ whiteSpace: 'pre-wrap' }}>
-                  {content}
-                </Typography>
-              )}
-            </Box>
-
-            {!isEditing && (
-              <Stack direction="row" className="msg-actions" sx={{ opacity: { xs: 1, sm: 0 }, transition: 'opacity 0.15s', flexShrink: 0 }}>
-                {isAssistant && <SpeakerButton text={content} />}
-                {isUser && !showDeleteConfirm && (
+              </Box>
+            ) : (
+              <>
+                <Box className="prose-chat">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      code: CodeBlock,
+                      a: ({ href, children }) => (
+                        <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
+                      ),
+                    }}
+                  >
+                    {cleanedContent}
+                  </ReactMarkdown>
+                </Box>
+                {isAssistant && message.visualizationsData?.length > 0 && (
                   <>
-                    <Tooltip title="Edit"><IconButton size="small" onClick={() => setIsEditing(true)} sx={{ color: 'rgba(255,255,255,0.85)' }}><Edit sx={{ fontSize: 14 }} /></IconButton></Tooltip>
-                    <Tooltip title="Delete"><IconButton size="small" onClick={handleDeleteClick} sx={{ color: 'rgba(255,255,255,0.85)' }}><Delete sx={{ fontSize: 14 }} /></IconButton></Tooltip>
+                    <Divider sx={{ my: 1.5 }} />
+                    <DataVisualization content="" data={message.visualizationsData} />
                   </>
                 )}
-                {isUser && showDeleteConfirm && (
-                  <Stack direction="row" alignItems="center" gap={0.5}>
-                    <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.85)' }}>Delete?</Typography>
-                    <IconButton size="small" onClick={handleConfirmDelete} sx={{ color: '#fff' }}><Check sx={{ fontSize: 14 }} /></IconButton>
-                    <IconButton size="small" onClick={() => setShowDeleteConfirm(false)} sx={{ color: '#fff' }}><Close sx={{ fontSize: 14 }} /></IconButton>
-                  </Stack>
-                )}
-              </Stack>
+              </>
             )}
-          </Stack>
-        </Paper>
+          </Paper>
 
-        {createdAt && !isEditing && (
-          <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, px: 0.5 }}>
-            {formatTime(createdAt)}
-          </Typography>
-        )}
+          {/* Actions */}
+          {!isEditing && (
+            <Box
+              sx={{
+                display: 'flex', gap: 0.25, mt: 0.5,
+                justifyContent: isUser ? 'flex-end' : 'flex-start',
+                opacity: 0, transition: 'opacity 0.15s',
+                '&:hover': { opacity: 1 },
+              }}
+              className="message-actions"
+            >
+              <Tooltip title={copied ? 'Copied!' : 'Copy'}>
+                <IconButton size="small" onClick={handleCopy} sx={{ width: 26, height: 26 }}>
+                  {copied ? <Check sx={{ fontSize: 13, color: 'success.main' }} /> : <ContentCopy sx={{ fontSize: 13 }} />}
+                </IconButton>
+              </Tooltip>
+              {isUser && (
+                <Tooltip title="Edit">
+                  <IconButton size="small" onClick={handleEdit} sx={{ width: 26, height: 26 }}>
+                    <Edit sx={{ fontSize: 13 }} />
+                  </IconButton>
+                </Tooltip>
+              )}
+              {isAssistant && (
+                <Tooltip title="Regenerate">
+                  <IconButton size="small" onClick={handleRegenerate} sx={{ width: 26, height: 26 }}>
+                    <Refresh sx={{ fontSize: 13 }} />
+                  </IconButton>
+                </Tooltip>
+              )}
+              <Tooltip title="More">
+                <IconButton size="small" onClick={(e) => setMenuAnchor(e.currentTarget)} sx={{ width: 26, height: 26 }}>
+                  <MoreHoriz sx={{ fontSize: 13 }} />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          )}
 
-        {/* Charts already rendered inside AnalysisResultView for enterprise modes */}
+          <Menu
+            anchorEl={menuAnchor}
+            open={Boolean(menuAnchor)}
+            onClose={() => setMenuAnchor(null)}
+            transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+            anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+            slotProps={{ paper: { sx: { minWidth: 160, mt: 0.25 } } }}
+          >
+            <MenuItem onClick={handleCopy} dense>
+              <ListItemIcon><ContentCopy sx={{ fontSize: 16 }} /></ListItemIcon>
+              <ListItemText>Copy</ListItemText>
+            </MenuItem>
+            {isUser && (
+              <MenuItem onClick={handleEdit} dense>
+                <ListItemIcon><Edit sx={{ fontSize: 16 }} /></ListItemIcon>
+                <ListItemText>Edit</ListItemText>
+              </MenuItem>
+            )}
+            {isAssistant && (
+              <MenuItem onClick={handleRegenerate} dense>
+                <ListItemIcon><Refresh sx={{ fontSize: 16 }} /></ListItemIcon>
+                <ListItemText>Regenerate</ListItemText>
+              </MenuItem>
+            )}
+            <MenuItem onClick={handleDelete} dense sx={{ color: 'error.main' }}>
+              <ListItemIcon><Delete sx={{ fontSize: 16, color: 'error.main' }} /></ListItemIcon>
+              <ListItemText>Delete</ListItemText>
+            </MenuItem>
+          </Menu>
+        </Box>
       </Box>
-
-      {isUser && (
-        <Avatar sx={{ width: 36, height: 36, alignSelf: 'flex-end', bgcolor: 'action.hover', color: 'text.secondary' }}>
-          <Person sx={{ fontSize: 18 }} />
-        </Avatar>
-      )}
-    </Stack>
+    </motion.div>
   );
 };
 
