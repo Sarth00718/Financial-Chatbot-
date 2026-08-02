@@ -19,6 +19,7 @@ from app.models.schemas import (
 from app.services.document_processor import document_processor
 from app.services.rag_service import rag_service
 from app.services.vector_store import vector_store
+from app.config.logger import logger
 import os
 
 # Create API router
@@ -39,9 +40,9 @@ async def process_document(
 ):
     
     try:
-        print(f"\n[REQUEST] Received document processing request")
-        print(f"Document ID: {request.documentId}")
-        print(f"File: {request.fileName}")
+        logger.info(f"\n[REQUEST] Received document processing request")
+        logger.info(f"Document ID: {request.documentId}")
+        logger.info(f"File: {request.fileName}")
         
         # Verify file exists
         if not os.path.exists(request.filePath):
@@ -67,7 +68,7 @@ async def process_document(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[ERROR] Error starting document processing: {e}")
+        logger.info(f"[ERROR] Error starting document processing: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"Failed to start processing: {str(e)}"

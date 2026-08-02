@@ -12,6 +12,7 @@ import { handleSocketChatMessage } from "./controllers/socket.controller.js";
 import { ensureUploadsDirectory } from "./utils/fileStorage.js";
 import { verifyAccessToken } from "./utils/jwt.js";
 import { User } from "./models/User.model.js";
+import logger from "./utils/logger.js";
 
 // Load environment variables
 dotenv.config();
@@ -94,7 +95,7 @@ io.use(async (socket, next) => {
 
     next();
   } catch (err) {
-    console.error("Socket auth failed:", err.message);
+    logger.error("Socket auth failed:", err.message);
     next(new Error("Socket authentication failed"));
   }
 });
@@ -103,7 +104,7 @@ io.use(async (socket, next) => {
  * Socket.IO Connection Handler
  */
 io.on("connection", (socket) => {
-  console.log(`✅ User connected: ${socket.id} (${socket.user?.email || 'unknown'})`);
+  logger.info(`✅ User connected: ${socket.id} (${socket.user?.email || 'unknown'})`);
 
   /**
    * Join Conversation Room
@@ -111,7 +112,7 @@ io.on("connection", (socket) => {
    */
   socket.on("joinConversation", (conversationId) => {
     socket.join(conversationId);
-    console.log(`📥 User joined conversation ${conversationId}`);
+    logger.info(`📥 User joined conversation ${conversationId}`);
   });
 
   /**
@@ -119,7 +120,7 @@ io.on("connection", (socket) => {
    */
   socket.on("leaveConversation", (conversationId) => {
     socket.leave(conversationId);
-    console.log(`📤 User left conversation ${conversationId}`);
+    logger.info(`📤 User left conversation ${conversationId}`);
   });
 
   /**
@@ -134,7 +135,7 @@ io.on("connection", (socket) => {
    * Disconnect Handler
    */
   socket.on("disconnect", () => {
-    console.log(`❌ User disconnected: ${socket.id}`);
+    logger.info(`❌ User disconnected: ${socket.id}`);
   });
 });
 
@@ -152,17 +153,17 @@ const startServer = async () => {
 
     // Start HTTP server
     httpServer.listen(PORT, () => {
-      console.log("\n" + "=".repeat(50));
-      console.log("🚀 FinChatBot Backend Server Started");
-      console.log("=".repeat(50));
-      console.log(`📍 Server URL: http://localhost:${PORT}`);
-      console.log(`🔌 Socket.IO: Enabled`);
-      console.log(`🌐 CORS Origin: ${CORS_ORIGIN || 'not configured (allows all origins)'}`);
-      console.log(`📁 Uploads Directory: ./uploads`);
-      console.log("=".repeat(50) + "\n");
+      logger.info("\n" + "=".repeat(50));
+      logger.info("🚀 FinChatBot Backend Server Started");
+      logger.info("=".repeat(50));
+      logger.info(`📍 Server URL: http://localhost:${PORT}`);
+      logger.info(`🔌 Socket.IO: Enabled`);
+      logger.info(`🌐 CORS Origin: ${CORS_ORIGIN || 'not configured (allows all origins)'}`);
+      logger.info(`📁 Uploads Directory: ./uploads`);
+      logger.info("=".repeat(50) + "\n");
     });
   } catch (error) {
-    console.error("❌ Failed to start server:", error.message);
+    logger.error("❌ Failed to start server:", error.message);
     process.exit(1);
   }
 };
@@ -175,17 +176,17 @@ startServer();
  * Handle process termination signals
  */
 process.on("SIGTERM", () => {
-  console.log("\n⚠️  SIGTERM signal received: closing HTTP server");
+  logger.info("\n⚠️  SIGTERM signal received: closing HTTP server");
   httpServer.close(() => {
-    console.log("✅ HTTP server closed");
+    logger.info("✅ HTTP server closed");
     process.exit(0);
   });
 });
 
 process.on("SIGINT", () => {
-  console.log("\n⚠️  SIGINT signal received: closing HTTP server");
+  logger.info("\n⚠️  SIGINT signal received: closing HTTP server");
   httpServer.close(() => {
-    console.log("✅ HTTP server closed");
+    logger.info("✅ HTTP server closed");
     process.exit(0);
   });
 });

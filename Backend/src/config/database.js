@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import logger from "../utils/logger.js";
 
 const connectDatabase = async () => {
   const mongoUri = process.env.MONGODB_URI?.trim();
@@ -10,22 +11,22 @@ const connectDatabase = async () => {
       serverSelectionTimeoutMS: 10000,
     });
 
-    console.log("✅ MongoDB Connected");
-    console.log("Database:", connection.connection.name);
+    logger.info("✅ MongoDB Connected");
+    logger.info("Database:", connection.connection.name);
   } catch (err) {
-    console.error("MongoDB connection failed:", err.message || err);
+    logger.error("MongoDB connection failed:", err.message || err);
 
     if (process.env.NODE_ENV === "development" && primaryUri !== localFallbackUri) {
-      console.warn("Attempting local MongoDB fallback at", localFallbackUri);
+      logger.warn("Attempting local MongoDB fallback at", localFallbackUri);
       try {
         const connection = await mongoose.connect(localFallbackUri, {
           serverSelectionTimeoutMS: 10000,
         });
-        console.log("✅ MongoDB Connected using local fallback");
-        console.log("Database:", connection.connection.name);
+        logger.info("✅ MongoDB Connected using local fallback");
+        logger.info("Database:", connection.connection.name);
         return;
       } catch (fallbackErr) {
-        console.error("Local MongoDB fallback failed:", fallbackErr.message || fallbackErr);
+        logger.error("Local MongoDB fallback failed:", fallbackErr.message || fallbackErr);
       }
     }
 

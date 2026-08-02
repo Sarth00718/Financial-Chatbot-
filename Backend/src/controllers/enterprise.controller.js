@@ -6,6 +6,7 @@
 import axios from "axios";
 import mongoose from "mongoose";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import logger from "../utils/logger.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { Conversation } from "../models/Conversation.model.js";
@@ -113,7 +114,7 @@ export const runEnterpriseAnalysis = asyncHandler(async (req, res) => {
       new ApiResponse(200, response.data, "Enterprise analysis completed")
     );
   } catch (error) {
-    console.error("Enterprise analysis error:", error.message);
+    logger.error("Enterprise analysis error:", error.message);
     throw new ApiError(502, "Enterprise AI service unavailable");
   }
 });
@@ -170,7 +171,7 @@ export const getEnterpriseCharts = asyncHandler(async (req, res) => {
       new ApiResponse(200, response.data, "Enterprise charts retrieved")
     );
   } catch (error) {
-    console.error("Enterprise chart extraction error:", error.message);
+    logger.error("Enterprise chart extraction error:", error.message);
     throw new ApiError(502, "Enterprise AI service unavailable");
   }
 });
@@ -195,7 +196,7 @@ export const getAuditSummary = asyncHandler(async (req, res) => {
       new ApiResponse(200, response.data, "Audit summary retrieved")
     );
   } catch (error) {
-    console.error("Audit summary error:", error.message);
+    logger.error("Audit summary error:", error.message);
     throw new ApiError(502, "Audit summary service unavailable");
   }
 });

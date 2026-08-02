@@ -7,6 +7,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { User } from "../models/User.model.js";
+import logger from "../utils/logger.js";
 import {
   generateAccessToken,
   generateRefreshToken,
@@ -43,7 +44,7 @@ export const register = asyncHandler(async (req, res) => {
 
   // Send welcome email (fire-and-forget)
   sendWelcomeEmail(email, name).catch((err) =>
-    console.error("Failed to send welcome email:", err)
+    logger.error("Failed to send welcome email:", err)
   );
 
   // Generate tokens

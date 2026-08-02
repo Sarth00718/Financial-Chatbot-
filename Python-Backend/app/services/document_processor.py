@@ -20,6 +20,9 @@ import pymupdf as fitz  # PyMuPDF
 from typing import List, Optional
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage
+import base64
 
 from app.config.settings import settings
 from app.services.vector_store import vector_store
@@ -49,11 +52,21 @@ class DocumentProcessor:
             chunk_overlap=settings.CHUNK_OVERLAP,
         )
 
-        # Vision model disabled — Groq requires public image URLs, not base64
-        # data URIs, and we cannot serve local PDF images as public URLs.
-        # OCR (OCR.Space) handles text extraction from images and scanned pages.
-        self.vision_llm = None
-        self.vision_enabled = False
+        # Enable vision model via Groq's OpenAI-compatible endpoint
+        try:
+            self.vision_llm = ChatOpenAI(
+                model=settings.VISION_MODEL,
+                base_url="https://api.groq.com/openai/v1",
+                api_key=settings.GROQ_API_KEY,
+                temperature=0.1,
+                max_tokens=500
+            )
+            self.vision_enabled = True
+        except Exception as e:
+            from app.config.logger import logger
+            logger.error(f"Failed to initialize vision model: {e}")
+            self.vision_llm = None
+            self.vision_enabled = False
 
     # ------------------------------------------------------------------
     # LAYER 4: Vision model — chart/image description
@@ -61,10 +74,35 @@ class DocumentProcessor:
 
     def _describe_image_bytes(self, image_bytes: bytes, context: str = "") -> str:
         """
-        Vision model is disabled (Groq requires public URLs, not base64 data URIs).
-        Returns a clean placeholder; actual OCR extraction is handled by ocr_service.
+        Uses the Groq vision model via ChatOpenAI to describe the image/chart.
         """
-        return "[Image/chart present — described via OCR]"
+        if not self.vision_enabled or not self.vision_llm:
+            return "[Image/chart present — vision model disabled]"
+            
+        try:
+            b64_img = base64.b64encode(image_bytes).decode("utf-8")
+            
+            prompt = "Describe the contents of this image. If it is a chart, extract the key data points."
+            if context:
+                prompt += f"\nContext surrounding the image: {context}"
+                
+            msg = HumanMessage(
+                content=[
+                    {"type": "text", "text": prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{b64_img}"}
+                    }
+                ]
+            )
+            
+            response = self.vision_llm.invoke([msg])
+            return f"[VISION DESCRIPTION: {response.content.strip()}]"
+            
+        except Exception as e:
+            from app.config.logger import logger
+            logger.error(f"Vision model failed to describe image: {e}")
+            return f"[Image/chart present — vision failed: {e}]"
 
     # ------------------------------------------------------------------
     # LAYER 1: PyMuPDF native text extraction

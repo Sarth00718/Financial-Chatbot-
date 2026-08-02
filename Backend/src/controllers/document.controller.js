@@ -12,6 +12,7 @@ import { Message } from "../models/Message.model.js";
 import { v4 as uuidv4 } from "uuid";
 import axios from "axios";
 import mongoose from "mongoose";
+import logger from "../utils/logger.js";
 
 /**
  * Upload documents to a conversation
@@ -70,7 +71,7 @@ export const uploadDocuments = asyncHandler(async (req, res) => {
         vectorNamespace: document.vectorNamespace,
       })
       .catch((err) => {
-        console.error(
+        logger.error(
           `Failed to trigger processing for document ${document._id}:`,
           err.message
         );
@@ -240,7 +241,7 @@ export const deleteDocument = asyncHandler(async (req, res) => {
       vectorNamespace: document.vectorNamespace,
     })
     .catch((err) => {
-      console.error("Failed to trigger document cleanup:", err.message);
+      logger.error("Failed to trigger document cleanup:", err.message);
     });
 
   // Delete document record
