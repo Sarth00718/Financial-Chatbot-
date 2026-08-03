@@ -99,7 +99,7 @@ const ChatInput = ({
         }}
       >
         {/* File attach */}
-        <Tooltip title="Upload files (PDF, Excel, CSV, DOCX)">
+        <Tooltip title="Upload files (PDF, Excel, CSV, DOCX, PPTX, Images)">
           <IconButton
             size="small"
             onClick={() => fileInputRef.current?.click()}
@@ -113,7 +113,7 @@ const ChatInput = ({
           ref={fileInputRef}
           type="file"
           multiple
-          accept=".pdf,.csv,.xlsx,.xls,.docx,.txt,.png,.jpg,.jpeg"
+          accept=".pdf,.csv,.xlsx,.xls,.docx,.pptx,.ppt,.txt,.md,.png,.jpg,.jpeg,.tiff,.bmp,.webp"
           onChange={handleFileSelect}
           style={{ display: 'none' }}
         />

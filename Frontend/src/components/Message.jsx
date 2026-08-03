@@ -292,6 +292,8 @@ const Message = ({ message, featureMode, onMessageUpdate, onMessageDelete, onReg
                 ? alpha('#2563EB', 0.15)
                 : alpha('#7C3AED', 0.1),
               position: 'relative',
+              wordBreak: 'break-word',
+              overflowWrap: 'anywhere',
               transition: 'box-shadow 0.15s ease',
               '&:hover': {
                 boxShadow: `0 2px 12px ${alpha(config.color, 0.06)}`,

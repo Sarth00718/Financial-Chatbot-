@@ -40,7 +40,7 @@ const fileFilter = (req, file, cb) => {
   } else {
     cb(
       new Error(
-        `Invalid file type. Allowed types: PDF, Excel, CSV`
+        `Invalid file type. Allowed types: PDF, Excel, CSV, PPTX, DOCX, TXT, MD, and Images (PNG, JPG, TIFF, BMP, WEBP)`
       ),
       false
     );

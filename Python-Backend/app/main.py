@@ -4,7 +4,6 @@ FastAPI application setup and configuration
 """
 
 import os
-import asyncio
 import logging
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
@@ -14,8 +13,8 @@ load_dotenv()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.routes import router
-from app.config.settings import settings
+from app.api.router import router
+from app.core.settings import settings
 
 # ── Suppress asyncio CancelledError noise on Windows clean shutdown ──────────
 # On Windows, uvicorn raises CancelledError during Ctrl+C shutdown. This is

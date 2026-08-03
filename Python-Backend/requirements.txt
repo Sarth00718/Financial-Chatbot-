@@ -13,6 +13,7 @@ langchain-community==0.3.5
 langchain-text-splitters==0.3.2
 langchain-openai==0.2.9
 langchain-huggingface==0.1.2
+langchain-groq==0.2.1
 
 # Embeddings
 sentence-transformers==3.3.1
@@ -24,7 +25,7 @@ faiss-cpu==1.9.0.post1
 python-dotenv==1.0.1
 
 # HTTP
-requests==2.32.3
+requests>=2.32.5
 
 # PDF
 pypdf==5.0.1
@@ -36,10 +37,6 @@ numpy==1.26.4
 Pillow>=12.0.0
 opencv-python-headless==4.10.0.84
 
-# Tables
-camelot-py==2.0.0
-tabula-py==2.10.0
-
 # Unstructured document parsing
 unstructured==0.23.1
 
@@ -49,6 +46,9 @@ python-multipart==0.0.12
 # DOCX support
 python-docx==1.1.2
 
-# Excel support (used in document_processor.py)
+# Excel support
 pandas==2.2.3
 openpyxl==3.1.5
+
+# PPTX support
+python-pptx==1.0.2
