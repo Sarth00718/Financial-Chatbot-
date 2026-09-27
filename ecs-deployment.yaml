@@ -1,0 +1,187 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'FinChatBot ECS Fargate Deployment'
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-06e67a62f3c85a896
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: subnet-0af768346875b74cc, subnet-0d69774c16a223e50, subnet-06657274d4652cf3c
+  FrontendImage:
+    Type: String
+    Default: 665651551502.dkr.ecr.us-east-1.amazonaws.com/finchatbot-frontend:latest
+  BackendImage:
+    Type: String
+    Default: 665651551502.dkr.ecr.us-east-1.amazonaws.com/finchatbot-backend:latest
+  PythonImage:
+    Type: String
+    Default: 665651551502.dkr.ecr.us-east-1.amazonaws.com/finchatbot-python:latest
+
+Resources:
+  EcsCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: finchatbot-cluster
+
+  # Execution Role
+  EcsTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  # Task Role
+  EcsTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+
+  # Security Group
+  EcsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow all traffic for FinChatBot
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 8000
+          ToPort: 8000
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 5000
+          ToPort: 5000
+          CidrIp: 0.0.0.0/0
+
+  # Log Groups
+  FrontendLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/finchatbot-frontend
+      RetentionInDays: 7
+  
+  BackendLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/finchatbot-backend
+      RetentionInDays: 7
+
+  PythonLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/finchatbot-python
+      RetentionInDays: 7
+
+  # Single Task Definition for all 3 containers to easily communicate via localhost
+  FinChatBotTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: finchatbot-app
+      Cpu: 2048
+      Memory: 4096
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !Ref EcsTaskExecutionRole
+      TaskRoleArn: !Ref EcsTaskRole
+      ContainerDefinitions:
+        - Name: frontend
+          Image: !Ref FrontendImage
+          PortMappings:
+            - ContainerPort: 80
+          Essential: true
+          Environment:
+            - Name: VITE_API_URL
+              Value: http://localhost:8000/api/v1
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref FrontendLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+        - Name: backend
+          Image: !Ref BackendImage
+          PortMappings:
+            - ContainerPort: 8000
+          Essential: true
+          Environment:
+            - Name: PORT
+              Value: "8000"
+            - Name: NODE_ENV
+              Value: "production"
+            # WARNING: Hardcoded for quick deploy. In production, use SecretsManager
+            - Name: MONGODB_URI
+              Value: "mongodb+srv://sarthnarola007_db_user:sarthnarola007@cluster0.hdp08wm.mongodb.net"
+            - Name: PYTHON_SERVICE_URL
+              Value: "http://localhost:5000"
+            - Name: CORS_ORIGIN
+              Value: "*"
+            - Name: JWT_ACCESS_SECRET
+              Value: "finchatbot-access-secret"
+            - Name: JWT_REFRESH_SECRET
+              Value: "finchatbot-refresh-secret"
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref BackendLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+        - Name: python-backend
+          Image: !Ref PythonImage
+          PortMappings:
+            - ContainerPort: 5000
+          Essential: true
+          Environment:
+            - Name: PORT
+              Value: "5000"
+            - Name: NODE_WEBHOOK_URL
+              Value: "http://localhost:8000"
+            - Name: GROQ_API_KEY
+              Value: "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"
+            - Name: LLM_MODEL
+              Value: "llama-3.3-70b-versatile"
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref PythonLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  # ECS Service
+  FinChatBotService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref EcsCluster
+      ServiceName: finchatbot-service
+      TaskDefinition: !Ref FinChatBotTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref EcsSecurityGroup
+          Subnets: !Ref SubnetIds
+
+Outputs:
+  ClusterName:
+    Value: !Ref EcsCluster

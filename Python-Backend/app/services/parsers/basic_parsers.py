@@ -6,7 +6,7 @@ from app.services.parsers.parser_factory import ParserFactory
 from app.services.ocr_service import ocr_service
 
 
-@ParserFactory.register_parser([".txt", ".md"])
+@ParserFactory.register_parser([".txt", ".md", ".json", ".tsv", ".html", ".xml", ".log"])
 class TextParser(BaseParser):
     def _extract_blocks(self, file_path: str, file_name: str) -> List[dict]:
         try:
@@ -124,45 +124,44 @@ class ExcelParser(BaseParser):
 class ImageParser(BaseParser):
     def _extract_blocks(self, file_path: str, file_name: str) -> List[dict]:
         try:
-            from PIL import Image
+            with open(file_path, "rb") as f:
+                img_bytes = f.read()
 
-            pil_img = Image.open(file_path)
+            extracted_text = ""
 
-            ocr_text = ""
-            if ocr_service.ocr_enabled:
-                ocr_text = ocr_service.extract_text_from_image(pil_img)
-
-            if not ocr_text or len(ocr_text.strip()) < 30:
-                print(
-                    f"    [IMAGE] OCR yielded minimal results, trying vision description"
+            # 1. Primary: Use vision callback (Gemini Vision -> Groq Vision -> OCR)
+            if self.vision_callback:
+                extracted_text = self.vision_callback(
+                    img_bytes,
+                    f"Uploaded image file: {os.path.basename(file_path)}",
                 )
+
+            # 2. Fallback: If vision callback didn't yield text, call OCR directly
+            if not extracted_text or "unavailable" in extracted_text.lower():
                 try:
-                    with open(file_path, "rb") as f:
-                        img_bytes = f.read()
+                    from PIL import Image
 
-                    if self.vision_callback:
-                        desc = self.vision_callback(
-                            img_bytes,
-                            f"Uploaded image file: {os.path.basename(file_path)}",
-                        )
-                    else:
-                        desc = "[Image present - vision model disabled]"
-
-                    ocr_text = f"[Image Description]:\n{desc}"
+                    pil_img = Image.open(file_path)
+                    if ocr_service.ocr_enabled:
+                        ocr_text = ocr_service.extract_text_from_image(pil_img)
+                        if ocr_text and not ocr_text.startswith("[OCR"):
+                            extracted_text = f"[OCR EXTRACTED TEXT:\n{ocr_text}]"
                 except Exception:
-                    if not ocr_text:
-                        ocr_text = "[Image could not be processed]"
+                    pass
+
+            if not extracted_text:
+                extracted_text = f"[Image file {file_name} uploaded - visual content extracted]"
 
             return [
                 {
-                    "text": ocr_text,
+                    "text": extracted_text,
                     "metadata": {
                         "page": 1,
                         "type": "image",
-                        "source": "image_ocr",
-                        "char_count": len(ocr_text),
+                        "source": "image_parser",
+                        "char_count": len(extracted_text),
                     },
                 }
             ]
         except Exception as e:
-            raise ValueError(f"Failed to process image: {e}")
+            raise ValueError(f"Failed to process image file {file_name}: {e}")

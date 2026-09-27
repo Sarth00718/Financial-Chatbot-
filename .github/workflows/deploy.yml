@@ -1,0 +1,76 @@
+name: Deploy to AWS ECS Fargate
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: 665651551502.dkr.ecr.us-east-1.amazonaws.com
+  FRONTEND_REPO: finchatbot-frontend
+  BACKEND_REPO: finchatbot-backend
+  PYTHON_REPO: finchatbot-python
+
+jobs:
+  build-and-push:
+    name: Build and Push Docker Images
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build, tag, and push Frontend image to Amazon ECR
+        run: |
+          docker build -t ${{ env.FRONTEND_REPO }} ./Frontend
+          docker tag ${{ env.FRONTEND_REPO }}:latest ${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_REPO }}:latest
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_REPO }}:latest
+
+      - name: Build, tag, and push Backend image to Amazon ECR
+        run: |
+          docker build -t ${{ env.BACKEND_REPO }} ./Backend
+          docker tag ${{ env.BACKEND_REPO }}:latest ${{ env.ECR_REGISTRY }}/${{ env.BACKEND_REPO }}:latest
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.BACKEND_REPO }}:latest
+
+      - name: Build, tag, and push Python image to Amazon ECR
+        run: |
+          docker build -t ${{ env.PYTHON_REPO }} ./Python-Backend
+          docker tag ${{ env.PYTHON_REPO }}:latest ${{ env.ECR_REGISTRY }}/${{ env.PYTHON_REPO }}:latest
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.PYTHON_REPO }}:latest
+
+  deploy-cfn:
+    name: Deploy CloudFormation Stack
+    runs-on: ubuntu-latest
+    needs: build-and-push
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy CloudFormation Stack
+        run: |
+          aws cloudformation deploy \
+            --template-file ecs-deployment.yaml \
+            --stack-name finchatbot-stack \
+            --capabilities CAPABILITY_NAMED_IAM

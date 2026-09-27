@@ -52,33 +52,49 @@ class DocumentProcessor:
         self.gemini_vision_llm = None
         if settings.GEMINI_API_KEY:
             try:
-                self.gemini_vision_llm = ChatOpenAI(
-                    model=settings.GEMINI_VISION_MODEL,
-                    base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
-                    api_key=settings.GEMINI_API_KEY,
-                    temperature=0.1,
-                    max_tokens=500,
-                )
-                print(f"[VISION] Primary: Gemini Vision ({settings.GEMINI_VISION_MODEL}) | Fallback: Groq ({settings.VISION_MODEL})")
+                try:
+                    from langchain_google_genai import ChatGoogleGenerativeAI
+
+                    self.gemini_vision_llm = ChatGoogleGenerativeAI(
+                        model=settings.GEMINI_VISION_MODEL,
+                        google_api_key=settings.GEMINI_API_KEY,
+                        temperature=0.1,
+                        max_output_tokens=500,
+                    )
+                except Exception:
+                    self.gemini_vision_llm = ChatOpenAI(
+                        model=settings.GEMINI_VISION_MODEL,
+                        base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+                        api_key=settings.GEMINI_API_KEY,
+                        temperature=0.1,
+                        max_tokens=500,
+                    )
+                print(f"[VISION] Primary: Gemini Vision ({settings.GEMINI_VISION_MODEL})")
             except Exception as e:
                 from app.core.logger import logger
+
                 logger.error(f"Failed to setup Gemini Vision: {e}")
                 self.gemini_vision_llm = None
 
-        self.vision_enabled = bool(self.gemini_vision_llm or self.groq_vision_llm)
+        self.vision_enabled = True
 
     def _describe_image_bytes(self, image_bytes: bytes, context: str = "") -> str:
         """
-        Uses Gemini Vision first to describe the image/chart, falling back to Groq Vision.
-        This is passed as a callback to the parsers.
+        Uses 3-tier fallback chain for image/chart/table content extraction:
+        1. Primary: Gemini Vision
+        2. Fallback 1: Groq Vision
+        3. Fallback 2: OCR Service (OCR.Space)
         """
-        if not self.vision_enabled:
-            return "[Image/chart present - vision model disabled]"
+        if not image_bytes:
+            return ""
 
         try:
             b64_img = base64.b64encode(image_bytes).decode("utf-8")
 
-            prompt = "Describe the contents of this image. If it is a chart, extract the key data points."
+            prompt = (
+                "Describe the contents of this image in detail. "
+                "If it contains a table, chart, diagram, or text, extract all key data points, structure, and text."
+            )
             if context:
                 prompt += f"\nContext surrounding the image: {context}"
 
@@ -92,26 +108,46 @@ class DocumentProcessor:
                 ]
             )
 
-            # 1. Try Gemini Vision
+            # 1. Primary: Gemini Vision
             if self.gemini_vision_llm:
                 try:
                     response = self.gemini_vision_llm.invoke([msg])
-                    return f"[VISION DESCRIPTION: {response.content.strip()}]"
+                    content = response.content.strip() if hasattr(response, "content") else str(response)
+                    if content:
+                        print(f"    [VISION] Extracted via Gemini Vision ({settings.GEMINI_VISION_MODEL})")
+                        return f"[VISION DESCRIPTION (Gemini): {content}]"
                 except Exception as e:
                     from app.core.logger import logger
-                    logger.warning(f"Gemini Vision failed ({e}). Falling back to Groq Vision...")
+                    logger.warning(f"Gemini Vision failed ({e}). Falling back...")
 
-            # 2. Fallback to Groq Vision
+            # 2. Fallback 1: Groq Vision
             if self.groq_vision_llm:
                 try:
                     response = self.groq_vision_llm.invoke([msg])
-                    return f"[VISION DESCRIPTION: {response.content.strip()}]"
+                    content = response.content.strip() if hasattr(response, "content") else str(response)
+                    if content:
+                        print(f"    [VISION] Extracted via Groq Vision ({settings.VISION_MODEL})")
+                        return f"[VISION DESCRIPTION (Groq): {content}]"
                 except Exception as e:
                     from app.core.logger import logger
-                    logger.error(f"Groq Vision fallback also failed: {e}")
-                    return f"[Image/chart present - vision failed: {e}]"
+                    if "decommissioned" in str(e).lower() or "400" in str(e):
+                        logger.info("Groq Vision model is decommissioned/unavailable. Switching image fallback directly to OCR.")
+                        self.groq_vision_llm = None  # Disable to avoid repeating error on subsequent images
+                    else:
+                        logger.warning(f"Groq Vision fallback failed ({e}). Falling back to OCR...")
 
-            return "[Image/chart present - no vision model available]"
+            # 3. Fallback 2: OCR Service (OCR.Space)
+            try:
+                from app.services.ocr_service import ocr_service
+                ocr_text = ocr_service.extract_text_from_image_bytes(image_bytes)
+                if ocr_text and not ocr_text.startswith("[OCR"):
+                    print(f"    [OCR] Extracted text via OCR.Space fallback ({len(ocr_text)} chars)")
+                    return f"[OCR EXTRACTED TEXT:\n{ocr_text}]"
+            except Exception as e:
+                from app.core.logger import logger
+                logger.error(f"OCR fallback failed: {e}")
+
+            return "[Image/chart present - vision and OCR extraction unavailable]"
 
         except Exception as e:
             from app.core.logger import logger

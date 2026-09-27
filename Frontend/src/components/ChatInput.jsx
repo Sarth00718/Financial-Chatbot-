@@ -99,7 +99,7 @@ const ChatInput = ({
         }}
       >
         {/* File attach */}
-        <Tooltip title="Upload files (PDF, Excel, CSV, DOCX, PPTX, Images)">
+        <Tooltip title="(PDF, Excel, CSV, DOCX, PPTX, Images)">
           <IconButton
             size="small"
             onClick={() => fileInputRef.current?.click()}

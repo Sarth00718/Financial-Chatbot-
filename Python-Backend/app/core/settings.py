@@ -43,9 +43,9 @@ class Settings(BaseSettings):
 
     # Vision Model Configuration (Groq — for chart/image/scan analysis)
     # Valid Groq vision models include:
-    #   llama-3.2-11b-vision-instruct
-    #   llama-3.2-90b-vision-instruct
-    VISION_MODEL: str = "llama-3.2-11b-vision-instruct"
+    #   llama-3.2-11b-vision-preview
+    #   llama-3.2-90b-vision-preview
+    VISION_MODEL: str = "llama-3.2-11b-vision-preview"
 
     # OCR Configuration
     # Choose OCR provider: "ocr_space" or "google_vision"

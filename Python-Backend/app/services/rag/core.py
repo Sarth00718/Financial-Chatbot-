@@ -28,13 +28,23 @@ class RAGCore:
         self.gemini_llm = None
         if settings.GEMINI_API_KEY:
             try:
-                self.gemini_llm = ChatOpenAI(
-                    model=settings.GEMINI_MODEL,
-                    api_key=settings.GEMINI_API_KEY,
-                    base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
-                    temperature=settings.LLM_TEMPERATURE,
-                    timeout=settings.LLM_TIMEOUT,
-                )
+                try:
+                    from langchain_google_genai import ChatGoogleGenerativeAI
+
+                    self.gemini_llm = ChatGoogleGenerativeAI(
+                        model=settings.GEMINI_MODEL,
+                        google_api_key=settings.GEMINI_API_KEY,
+                        temperature=settings.LLM_TEMPERATURE,
+                        timeout=settings.LLM_TIMEOUT,
+                    )
+                except Exception:
+                    self.gemini_llm = ChatOpenAI(
+                        model=settings.GEMINI_MODEL,
+                        api_key=settings.GEMINI_API_KEY,
+                        base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+                        temperature=settings.LLM_TEMPERATURE,
+                        timeout=settings.LLM_TIMEOUT,
+                    )
                 print(f"[LLM] Primary: Gemini ({settings.GEMINI_MODEL}) | Fallback: Groq ({settings.LLM_MODEL})")
             except Exception as e:
                 print(f"[WARNING] Failed to setup Gemini LLM: {e}. Defaulting to Groq.")
