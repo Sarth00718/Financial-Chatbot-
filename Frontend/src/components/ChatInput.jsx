@@ -100,14 +100,16 @@ const ChatInput = ({
       >
         {/* File attach */}
         <Tooltip title="(PDF, Excel, CSV, DOCX, PPTX, Images)">
-          <IconButton
-            size="small"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isLoading}
-            sx={{ mb: 0.25 }}
-          >
-            <AttachFile sx={{ fontSize: 20 }} />
-          </IconButton>
+          <span>
+            <IconButton
+              size="small"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isLoading}
+              sx={{ mb: 0.25 }}
+            >
+              <AttachFile sx={{ fontSize: 20 }} />
+            </IconButton>
+          </span>
         </Tooltip>
         <input
           ref={fileInputRef}
@@ -147,23 +149,25 @@ const ChatInput = ({
 
         {/* Send / Stop */}
         <Tooltip title={isLoading ? 'Stop' : 'Send message'}>
-          <IconButton
-            size="small"
-            onClick={isLoading ? () => {} : onSend}
-            disabled={!input.trim() && !isLoading}
-            sx={{
-              width: 32, height: 32,
-              bgcolor: input.trim() && !isLoading ? (modeColor || 'primary.main') : 'action.disabledBackground',
-              color: '#fff',
-              '&:hover': {
-                bgcolor: input.trim() && !isLoading ? (modeColor || 'primary.dark') : 'action.disabledBackground',
-              },
-              '&:disabled': { bgcolor: 'action.disabledBackground', color: 'text.disabled' },
-              transition: 'all 0.2s ease',
-            }}
-          >
-            {isLoading ? <Square sx={{ fontSize: 14 }} /> : <Send sx={{ fontSize: 16 }} />}
-          </IconButton>
+          <span>
+            <IconButton
+              size="small"
+              onClick={isLoading ? () => {} : onSend}
+              disabled={!input.trim() && !isLoading}
+              sx={{
+                width: 32, height: 32,
+                bgcolor: input.trim() && !isLoading ? (modeColor || 'primary.main') : 'action.disabledBackground',
+                color: '#fff',
+                '&:hover': {
+                  bgcolor: input.trim() && !isLoading ? (modeColor || 'primary.dark') : 'action.disabledBackground',
+                },
+                '&:disabled': { bgcolor: 'action.disabledBackground', color: 'text.disabled' },
+                transition: 'all 0.2s ease',
+              }}
+            >
+              {isLoading ? <Square sx={{ fontSize: 14 }} /> : <Send sx={{ fontSize: 16 }} />}
+            </IconButton>
+          </span>
         </Tooltip>
       </Paper>
     </Box>

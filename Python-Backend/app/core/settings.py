@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
 
     # LLM Configuration (Groq)
-    LLM_MODEL: str = "llama-3.3-70b-versatile"  # High performance Groq model
+    LLM_MODEL: str = "openai/gpt-oss-20b"  # Available model on your Groq key
     LLM_TEMPERATURE: float = 0.0
     LLM_MAX_TOKENS: int = 2000  # Limit to save credits
     LLM_TIMEOUT: int = 60  # Timeout in seconds for LLM API calls

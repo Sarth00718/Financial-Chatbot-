@@ -103,7 +103,7 @@ const ChatPage = () => {
   }, [messages, messagesReady]);
 
   useEffect(() => {
-    const socketUrl = BACKEND_ORIGIN || window.location.origin;
+    const socketUrl = '/'; // Rely on Vite proxy in dev, same-origin in prod
     const socket = io(socketUrl, { withCredentials: true, transports: ['websocket'] });
     socketRef.current = socket;
 

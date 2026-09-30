@@ -254,30 +254,24 @@ export const deleteConversation = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid conversation ID");
   }
 
-  // Use transaction to ensure all-or-nothing deletion
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
     // Find and delete conversation (verify ownership)
     const conversation = await Conversation.findOneAndDelete({
       _id: conversationId,
       user: req.user._id,
-    }).session(session);
+    });
 
     if (!conversation) {
       throw new ApiError(404, "Conversation not found");
     }
 
     // Delete all messages in the conversation
-    await Message.deleteMany({ conversation: conversationId }).session(
-      session
-    );
+    await Message.deleteMany({ conversation: conversationId });
 
     // Find all documents to clean up
     const documents = await Document.find({
       conversation: conversationId,
-    }).session(session);
+    });
 
     if (documents.length > 0) {
       // Notify Python service to delete vectors (fire-and-forget)
@@ -296,13 +290,8 @@ export const deleteConversation = asyncHandler(async (req, res) => {
         });
 
       // Delete document records
-      await Document.deleteMany({ conversation: conversationId }).session(
-        session
-      );
+      await Document.deleteMany({ conversation: conversationId });
     }
-
-    // Commit transaction
-    await session.commitTransaction();
 
     return res
       .status(200)
@@ -310,16 +299,10 @@ export const deleteConversation = asyncHandler(async (req, res) => {
         new ApiResponse(200, {}, "Conversation deleted successfully")
       );
   } catch (error) {
-    // Rollback transaction on error (only if not already committed)
-    if (session.inTransaction()) {
-      await session.abortTransaction();
-    }
     throw new ApiError(
       500,
       error?.message || "Failed to delete conversation"
     );
-  } finally {
-    session.endSession();
   }
 });
 
