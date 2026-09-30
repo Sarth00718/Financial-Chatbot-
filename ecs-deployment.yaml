@@ -178,6 +178,10 @@ Resources:
               Value: "finchatbot-access-secret"
             - Name: JWT_REFRESH_SECRET
               Value: "finchatbot-refresh-secret"
+            - Name: COOKIE_SECURE
+              Value: "false"
+            - Name: COOKIE_SAME_SITE
+              Value: "lax"
           LogConfiguration:
             LogDriver: awslogs
             Options:

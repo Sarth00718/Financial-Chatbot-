@@ -48,7 +48,9 @@ export const verifyRefreshToken = (token) => {
 const getCookieOptions = () => {
   const isProduction = process.env.NODE_ENV === "production";
   const sameSite = process.env.COOKIE_SAME_SITE || (isProduction ? "none" : "lax");
-  const secure = process.env.COOKIE_SECURE === "true" || isProduction;
+  let secure = isProduction;
+  if (process.env.COOKIE_SECURE === "false") secure = false;
+  if (process.env.COOKIE_SECURE === "true") secure = true;
   return { sameSite, secure };
 };
 
