@@ -21,7 +21,7 @@ const webhookAuth = (req, res, next) => {
   if (!secret) {
     const remoteIp = req.ip || req.socket?.remoteAddress || '';
     const isLocal = remoteIp === '127.0.0.1' || remoteIp === '::1' || remoteIp === '::ffff:127.0.0.1';
-    if (process.env.NODE_ENV !== 'production' && isLocal) return next();
+    if (isLocal) return next();
     return res.status(401).json({ success: false, message: 'Webhook authentication required' });
   }
   const provided = req.headers['x-webhook-secret'];
