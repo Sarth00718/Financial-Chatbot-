@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'FinChatBot ECS Fargate Deployment'
+Description: 'FinChatBot ECS Fargate Deployment with ALB'
 
 Parameters:
   VpcId:
@@ -24,7 +24,6 @@ Resources:
     Properties:
       ClusterName: finchatbot-cluster
 
-  # Execution Role
   EcsTaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -38,7 +37,6 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
 
-  # Task Role
   EcsTaskRole:
     Type: AWS::IAM::Role
     Properties:
@@ -50,17 +48,27 @@ Resources:
               Service: ecs-tasks.amazonaws.com
             Action: sts:AssumeRole
 
-  # Security Group
-  EcsSecurityGroup:
+  AlbSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Allow all traffic for FinChatBot
+      GroupDescription: Allow HTTP traffic to ALB
       VpcId: !Ref VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
           CidrIp: 0.0.0.0/0
+
+  EcsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow traffic from ALB to FinChatBot
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref AlbSecurityGroup
         - IpProtocol: tcp
           FromPort: 8000
           ToPort: 8000
@@ -70,7 +78,41 @@ Resources:
           ToPort: 5000
           CidrIp: 0.0.0.0/0
 
-  # Log Groups
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: finchatbot-alb
+      Subnets: !Ref SubnetIds
+      SecurityGroups:
+        - !Ref AlbSecurityGroup
+      Scheme: internet-facing
+      Type: application
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: finchatbot-tg
+      VpcId: !Ref VpcId
+      Port: 80
+      Protocol: HTTP
+      TargetType: ip
+      HealthCheckIntervalSeconds: 30
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+
   FrontendLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -89,7 +131,6 @@ Resources:
       LogGroupName: /ecs/finchatbot-python
       RetentionInDays: 7
 
-  # Single Task Definition for all 3 containers to easily communicate via localhost
   FinChatBotTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -109,7 +150,7 @@ Resources:
           Essential: true
           Environment:
             - Name: VITE_API_URL
-              Value: http://localhost:8000/api/v1
+              Value: /api/v1
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -127,7 +168,6 @@ Resources:
               Value: "8000"
             - Name: NODE_ENV
               Value: "production"
-            # WARNING: Hardcoded for quick deploy. In production, use SecretsManager
             - Name: MONGODB_URI
               Value: "mongodb+srv://sarthnarola007_db_user:sarthnarola007@cluster0.hdp08wm.mongodb.net"
             - Name: PYTHON_SERVICE_URL
@@ -166,12 +206,12 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
-  # ECS Service
-  FinChatBotService:
+  FinChatBotServiceV2:
     Type: AWS::ECS::Service
+    DependsOn: Listener
     Properties:
       Cluster: !Ref EcsCluster
-      ServiceName: finchatbot-service
+      ServiceName: finchatbot-service-v2
       TaskDefinition: !Ref FinChatBotTaskDefinition
       DesiredCount: 1
       LaunchType: FARGATE
@@ -181,7 +221,14 @@ Resources:
           SecurityGroups:
             - !Ref EcsSecurityGroup
           Subnets: !Ref SubnetIds
+      LoadBalancers:
+        - TargetGroupArn: !Ref TargetGroup
+          ContainerName: frontend
+          ContainerPort: 80
 
 Outputs:
   ClusterName:
     Value: !Ref EcsCluster
+  DomainName:
+    Description: "The AWS Domain Name (ALB URL) for the application"
+    Value: !GetAtt LoadBalancer.DNSName

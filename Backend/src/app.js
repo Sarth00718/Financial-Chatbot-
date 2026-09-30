@@ -85,7 +85,7 @@ app.use(
       }
 
       const normalizedOrigin = origin.trim();
-      const isAllowed = allowedCorsOrigins.some(
+      const isAllowed = allowedCorsOrigins.includes("*") || allowedCorsOrigins.some(
         (allowedOrigin) => allowedOrigin.toLowerCase() === normalizedOrigin.toLowerCase()
       );
 
