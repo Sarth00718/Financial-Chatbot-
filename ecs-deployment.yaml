@@ -142,6 +142,8 @@ Resources:
         - FARGATE
       ExecutionRoleArn: !Ref EcsTaskExecutionRole
       TaskRoleArn: !Ref EcsTaskRole
+      Volumes:
+        - Name: shared-uploads
       ContainerDefinitions:
         - Name: frontend
           Image: !Ref FrontendImage
@@ -163,6 +165,9 @@ Resources:
           PortMappings:
             - ContainerPort: 8000
           Essential: true
+          MountPoints:
+            - SourceVolume: shared-uploads
+              ContainerPath: /app/uploads
           Environment:
             - Name: PORT
               Value: "8000"
@@ -194,6 +199,9 @@ Resources:
           PortMappings:
             - ContainerPort: 5000
           Essential: true
+          MountPoints:
+            - SourceVolume: shared-uploads
+              ContainerPath: /app/uploads
           Environment:
             - Name: PORT
               Value: "5000"
