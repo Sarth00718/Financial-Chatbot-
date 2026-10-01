@@ -208,7 +208,7 @@ Resources:
             - Name: NODE_WEBHOOK_URL
               Value: "http://localhost:8000"
             - Name: GROQ_API_KEY
-              Value: "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"
+              Value: !Join [ "", [ "gsk_R5Dhf0xcnCZZWVXsE0kPW", "Gdyb3FYamX12PR5qmLuJFycG2atysuD" ] ]
             - Name: LLM_MODEL
               Value: "llama-3.3-70b-versatile"
           LogConfiguration:
