@@ -208,9 +208,11 @@ Resources:
             - Name: NODE_WEBHOOK_URL
               Value: "http://localhost:8000"
             - Name: GROQ_API_KEY
-              Value: !Join [ "", [ "gsk_R5Dhf0xcnCZZWVXsE0kPW", "Gdyb3FYamX12PR5qmLuJFycG2atysuD" ] ]
+              Value: !Join [ "", [ "gsk_CZRJHvb8xTCLw6CwThuyW", "Gdyb3FYjBzFBP0teQ7oEGftWpqMreTq" ] ]
             - Name: LLM_MODEL
               Value: "llama-3.1-70b-versatile"
+            - Name: VISION_MODEL
+              Value: "llama-3.2-11b-vision-preview"
           LogConfiguration:
             LogDriver: awslogs
             Options:
