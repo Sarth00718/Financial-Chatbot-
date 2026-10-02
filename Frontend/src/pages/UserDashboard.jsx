@@ -48,10 +48,6 @@ const UserDashboard = () => {
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1200, mx: 'auto' }}>
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="h4" fontWeight={800} sx={{ letterSpacing: '-0.03em', mb: 0.5 }}>Dashboard</Typography>
-        <Typography variant="body2" color="text.secondary">Your personal activity overview</Typography>
-      </Box>
 
       {/* Overview stats — only shown when there's data */}
       {overview && (

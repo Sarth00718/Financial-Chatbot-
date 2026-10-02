@@ -81,17 +81,6 @@ const ExecutiveDashboard = () => {
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1200, mx: 'auto' }}>
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="h4" fontWeight={800} sx={{ letterSpacing: '-0.03em', mb: 0.25 }}>
-          Executive Dashboard
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {isExecutive
-            ? 'System-wide performance metrics and business intelligence'
-            : 'Your account analytics and usage overview'
-          }
-        </Typography>
-      </Box>
 
       {/* KPIs */}
       {(isExecutive || isUser) && (

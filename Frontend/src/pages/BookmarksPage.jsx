@@ -41,16 +41,6 @@ const BookmarksPage = () => {
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1000, mx: 'auto' }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-        <Box sx={{ width: 36, height: 36, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: alpha('#7C3AED', 0.1) }}>
-          <Bookmark sx={{ fontSize: 18, color: '#7C3AED' }} />
-        </Box>
-        <Box>
-          <Typography variant="h4" fontWeight={800} sx={{ letterSpacing: '-0.03em', mb: 0.25 }}>Bookmarks</Typography>
-          <Typography variant="body2" color="text.secondary">Your saved insights and analyses</Typography>
-        </Box>
-      </Box>
-
       {bookmarks.length === 0 ? (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
           <Paper variant="outlined" sx={{ textAlign: 'center', py: 10, borderRadius: 3 }}>

@@ -42,16 +42,6 @@ const WatchlistPage = () => {
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1000, mx: 'auto' }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-        <Box sx={{ width: 36, height: 36, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: alpha('#16A34A', 0.1) }}>
-          <Visibility sx={{ fontSize: 18, color: '#16A34A' }} />
-        </Box>
-        <Box>
-          <Typography variant="h4" fontWeight={800} sx={{ letterSpacing: '-0.03em', mb: 0.25 }}>Watchlist</Typography>
-          <Typography variant="body2" color="text.secondary">Tracked companies, documents, and key indicators</Typography>
-        </Box>
-      </Box>
-
       {watchlist.length === 0 ? (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
           <Paper variant="outlined" sx={{ textAlign: 'center', py: 10, borderRadius: 3 }}>
