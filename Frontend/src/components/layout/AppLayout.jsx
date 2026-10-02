@@ -21,8 +21,6 @@ const navItems = [
   { path: '/', label: 'Chat', icon: Chat, desc: 'AI conversations' },
   { path: '/dashboard', label: 'Dashboard', icon: Dashboard, desc: 'Your analytics' },
   { path: '/executive', label: 'Executive', icon: Insights, desc: 'Enterprise insights' },
-  { path: '/bookmarks', label: 'Bookmarks', icon: Bookmark, desc: 'Saved items' },
-  { path: '/watchlist', label: 'Watchlist', icon: Visibility, desc: 'Tracked content' },
 ];
 
 const AppLayout = ({ children, sidebarContent: customSidebar, showTopbar = true }) => {

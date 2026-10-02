@@ -30,8 +30,6 @@ import ChatPage from './pages/ChatPage';
 import AdminDashboard from './pages/AdminDashboard';
 import UserDashboard from './pages/UserDashboard';
 import ExecutiveDashboard from './pages/ExecutiveDashboard';
-import BookmarksPage from './pages/BookmarksPage';
-import WatchlistPage from './pages/WatchlistPage';
 import MuiThemeWrapper from './theme/MuiThemeWrapper';
 import ErrorBoundary from './components/ErrorBoundary';
 import AppLayout from './components/layout/AppLayout';
@@ -131,26 +129,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/bookmarks"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <BookmarksPage />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/watchlist"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <WatchlistPage />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
+
 
             {/* Admin routes */}
             <Route
