@@ -24,7 +24,7 @@ class RAGChatService(RAGCore):
     async def _classify_intent(self, question: str) -> dict:
         prompt = PromptTemplate.from_template(INTENT_CLASSIFICATION_PROMPT)
         chain = prompt | self.llm | StrOutputParser()
-        raw_answer = chain.invoke({"question": question})
+        raw_answer = await chain.ainvoke({"question": question})
         parsed = self._parse_json_output(raw_answer)
         if isinstance(parsed, dict) and "intent" in parsed:
             return parsed

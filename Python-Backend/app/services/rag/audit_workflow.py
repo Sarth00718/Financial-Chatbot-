@@ -30,7 +30,7 @@ class RAGAuditService(RAGCore):
         chain = prompt | self.llm | StrOutputParser()
 
         try:
-            raw = chain.invoke({"context": context})
+            raw = await chain.ainvoke({"context": context})
             raw = (
                 raw.strip()
                 .removeprefix("```json")
