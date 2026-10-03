@@ -337,7 +337,20 @@ class RAGCore:
                         i += 1
                         continue
                     if ch == '"':
-                        break
+                        # Lookahead to verify if this quote actually closes the string
+                        lookahead = stripped[i+1:].lstrip()
+                        is_closing = False
+                        if lookahead.startswith(',') or lookahead.startswith('}'):
+                            if lookahead.startswith(','):
+                                after_comma = lookahead[1:].lstrip()
+                                if after_comma.startswith('"'):
+                                    is_closing = True
+                            elif lookahead.startswith('}'):
+                                after_brace = lookahead[1:].lstrip()
+                                if not after_brace or after_brace.startswith(',') or after_brace.startswith(']'):
+                                    is_closing = True
+                        if is_closing:
+                            break
                     i += 1
                 raw = stripped[after_colon + 1 : i]
                 raw = (

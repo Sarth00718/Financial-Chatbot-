@@ -127,7 +127,19 @@ const Message = ({ message, featureMode, onMessageUpdate, onMessageDelete, onReg
               const ch = s[i];
               if (escaped) { escaped = false; continue; }
               if (ch === '\\') { escaped = true; continue; }
-              if (ch === '"') break;
+              if (ch === '"') {
+                const lookahead = s.slice(i + 1).trimStart();
+                let isClosing = false;
+                if (lookahead.startsWith(',') || lookahead.startsWith('}')) {
+                  if (lookahead.startsWith(',')) {
+                    if (lookahead.slice(1).trimStart().startsWith('"')) isClosing = true;
+                  } else if (lookahead.startsWith('}')) {
+                    const afterBrace = lookahead.slice(1).trimStart();
+                    if (!afterBrace || afterBrace.startsWith(',') || afterBrace.startsWith(']')) isClosing = true;
+                  }
+                }
+                if (isClosing) break;
+              }
             }
             const raw = s.slice(afterColon + 1, i);
             // Attempt to unescape JSON escapes
