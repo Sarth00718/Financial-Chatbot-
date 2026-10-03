@@ -158,6 +158,12 @@ const Message = ({ message, featureMode, onMessageUpdate, onMessageDelete, onReg
     // Remove JSON objects that appear mid-sentence: { "key": value, ... }
     // This matches { ... } with at least one quoted key inside.
     txt = txt.replace(/\{\s*"[^"]+"\s*:\s*[^}]+\}/g, '');
+    
+    // Fix broken markdown tables where the LLM inserts a newline right after a pipe.
+    // This matches a pipe, optional spaces/tabs, EXACTLY ONE newline, optional spaces/tabs.
+    // It asserts that the next character is NOT a pipe, dash, or another newline.
+    txt = txt.replace(/\|[ \t]*\n[ \t]*(?=[^|\-\n])/g, '| ');
+
     // Collapse multiple blank lines into one
     txt = txt.replace(/\n{3,}/g, '\n\n');
     return txt.trim();
