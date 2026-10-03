@@ -210,7 +210,7 @@ Resources:
             - Name: GROQ_API_KEY
               Value: !Join [ "", [ "gsk_CZRJHvb8xTCLw6CwThuyW", "Gdyb3FYjBzFBP0teQ7oEGftWpqMreTq" ] ]
             - Name: LLM_MODEL
-              Value: "llama-3.3-70b-versatile"
+              Value: "openai/gpt-oss-20b"
             - Name: VISION_MODEL
               Value: "llama-3.2-11b-vision-preview"
           LogConfiguration:
