@@ -1,6 +1,6 @@
 """
 Local Vector Store Service (FAISS)
-Replaces Pinecone with local FAISS vector database
+local FAISS vector database
 Handles storage and retrieval of document embeddings
 """
 

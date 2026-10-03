@@ -1,6 +1,6 @@
 /**
  * Enterprise Controller
- * Proxies enterprise AI analysis to Python service and manages watchlists/bookmarks
+ * Proxies enterprise AI analysis to Python service
  */
 
 import axios from "axios";
@@ -11,8 +11,6 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { Conversation } from "../models/Conversation.model.js";
 import { Document } from "../models/Document.model.js";
-import { Watchlist } from "../models/Watchlist.model.js";
-import { Bookmark } from "../models/Bookmark.model.js";
 
 const getPythonUrl = () => {
   const url = process.env.PYTHON_SERVICE_URL;
@@ -201,102 +199,10 @@ export const getAuditSummary = asyncHandler(async (req, res) => {
   }
 });
 
-// ── Watchlist CRUD ──────────────────────────────────────────────
-
-export const getWatchlist = asyncHandler(async (req, res) => {
-  const items = await Watchlist.find({ user: req.user._id, isActive: true })
-    .populate("conversation", "title")
-    .populate("document", "fileName fileType status")
-    .sort({ updatedAt: -1 });
-
-  return res.status(200).json(new ApiResponse(200, items, "Watchlist retrieved"));
-});
-
-export const addToWatchlist = asyncHandler(async (req, res) => {
-  const { name, company, conversationId, documentId, notes, tags } = req.body;
-
-  if (!name?.trim()) {
-    throw new ApiError(400, "Name is required");
-  }
-
-  const item = await Watchlist.create({
-    user: req.user._id,
-    name: name.trim(),
-    company: company?.trim() || "",
-    conversation: conversationId || undefined,
-    document: documentId || undefined,
-    notes: notes || "",
-    tags: tags || [],
-  });
-
-  return res.status(201).json(new ApiResponse(201, item, "Added to watchlist"));
-});
-
-export const removeFromWatchlist = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-
-  if (!mongoose.isValidObjectId(id)) {
-    throw new ApiError(400, "Invalid watchlist ID");
-  }
-
-  const item = await Watchlist.findOneAndDelete({ _id: id, user: req.user._id });
-
-  if (!item) {
-    throw new ApiError(404, "Watchlist item not found");
-  }
-
-  return res.status(200).json(new ApiResponse(200, {}, "Removed from watchlist"));
-});
-
-// ── Bookmark CRUD ───────────────────────────────────────────────
-
-export const getBookmarks = asyncHandler(async (req, res) => {
-  const bookmarks = await Bookmark.find({ user: req.user._id })
-    .populate("conversation", "title")
-    .sort({ createdAt: -1 });
-
-  return res.status(200).json(new ApiResponse(200, bookmarks, "Bookmarks retrieved"));
-});
-
-export const createBookmark = asyncHandler(async (req, res) => {
-  const { title, content, conversationId, messageId, analysisType, tags } = req.body;
-
-  if (!title?.trim() || !content?.trim()) {
-    throw new ApiError(400, "Title and content are required");
-  }
-
-  const bookmark = await Bookmark.create({
-    user: req.user._id,
-    title: title.trim(),
-    content: content.trim(),
-    conversation: conversationId || undefined,
-    message: messageId || undefined,
-    analysisType: analysisType || "",
-    tags: tags || [],
-  });
-
-  return res.status(201).json(new ApiResponse(201, bookmark, "Bookmark created"));
-});
-
-export const deleteBookmark = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-
-  if (!mongoose.isValidObjectId(id)) {
-    throw new ApiError(400, "Invalid bookmark ID");
-  }
-
-  const bookmark = await Bookmark.findOneAndDelete({ _id: id, user: req.user._id });
-
-  if (!bookmark) {
-    throw new ApiError(404, "Bookmark not found");
-  }
-
-  return res.status(200).json(new ApiResponse(200, {}, "Bookmark deleted"));
-});
 
 /**
  * GET /api/v1/enterprise/search
- * Advanced search across conversations and bookmarks
+ * Advanced search across conversations
  */
 export const advancedSearch = asyncHandler(async (req, res) => {
   const { q, type = "all" } = req.query;
@@ -305,32 +211,16 @@ export const advancedSearch = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Search query is required");
   }
 
-  const results = { conversations: [], bookmarks: [] };
+  const results = { conversations: [] };
 
   const escapedQ = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  if (type === "all" || type === "conversations") {
-    results.conversations = await Conversation.find({
-      user: req.user._id,
-      title: { $regex: escapedQ, $options: "i" },
-    })
-      .select("title featureUsed updatedAt")
-      .sort({ updatedAt: -1 })
-      .limit(20);
-  }
-
-  if (type === "all" || type === "bookmarks") {
-    results.bookmarks = await Bookmark.find({
-      user: req.user._id,
-      $or: [
-        { title: { $regex: escapedQ, $options: "i" } },
-        { content: { $regex: escapedQ, $options: "i" } },
-        { tags: { $regex: escapedQ, $options: "i" } },
-      ],
-    })
-      .select("title analysisType tags createdAt")
-      .sort({ createdAt: -1 })
-      .limit(20);
-  }
+  results.conversations = await Conversation.find({
+    user: req.user._id,
+    title: { $regex: escapedQ, $options: "i" },
+  })
+    .select("title featureUsed updatedAt")
+    .sort({ updatedAt: -1 })
+    .limit(20);
 
   return res.status(200).json(new ApiResponse(200, results, "Search completed"));
 });

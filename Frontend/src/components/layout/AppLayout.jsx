@@ -6,7 +6,7 @@ import {
   Drawer, Divider, Avatar, Stack, Badge, alpha,
 } from '@mui/material';
 import {
-  Chat, Dashboard, Insights, Bookmark, Visibility,
+  Chat, Dashboard, Insights,
   AdminPanelSettings, ChevronLeft, Menu as MenuIcon,
   Logout, Settings, HelpOutline, KeyboardCommandKey,
 } from '@mui/icons-material';

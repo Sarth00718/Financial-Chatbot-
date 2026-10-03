@@ -11,7 +11,7 @@ import rateLimit from "express-rate-limit";
  */
 export const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100,
+  max: 10000, // Increased for development to prevent blocking
   message: {
     success: false,
     message: "Too many requests from this IP, please try again later.",
@@ -26,7 +26,7 @@ export const apiLimiter = rateLimit({
  */
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20, // Increased from 5 to 20 for development
+  max: 1000, // Increased for development to prevent blocking
   message: {
     success: false,
     message: "Too many authentication attempts, please try again later.",

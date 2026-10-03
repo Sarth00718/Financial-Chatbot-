@@ -13,8 +13,15 @@ import axios from "axios";
 
 const VALID_FEATURE_MODES = new Set([
   'Smart_Chat', 'Document_Analysis', 'Analytical_Insights', 'General_Conversation',
+  'executive_summary', 'financial_ratios', 'swot_analysis', 'risk_analysis', 
+  'company_comparison', 'multi_document_comparison', 'kpi_extraction', 
+  'explain_mode', 'trend_analysis', 'report_generator'
 ]);
-const ENTERPRISE_FEATURE_MODES = new Set(['Document_Analysis', 'Analytical_Insights']);
+const ENTERPRISE_FEATURE_MODES = new Set([
+  'Document_Analysis', 'Analytical_Insights', 'executive_summary', 'financial_ratios', 
+  'swot_analysis', 'risk_analysis', 'company_comparison', 'multi_document_comparison', 
+  'kpi_extraction', 'explain_mode', 'trend_analysis', 'report_generator'
+]);
 
 /** Sanitise feature mode — never store an invalid enum value. */
 const sanitiseFeatureMode = (raw) =>
@@ -65,7 +72,7 @@ export const updateMessage = asyncHandler(async (req, res) => {
  */
 export const editAndRegenerateMessage = asyncHandler(async (req, res) => {
   const { messageId } = req.params;
-  const { content } = req.body;
+  let { content } = req.body;
 
   if (!content || !content.trim()) {
     throw new ApiError(400, "Message content cannot be empty");
@@ -74,11 +81,24 @@ export const editAndRegenerateMessage = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid message ID");
   }
 
-  const message = await Message.findById(messageId).populate({
+  let message = await Message.findById(messageId).populate({
     path: "conversation",
     populate: { path: "documents" },
   });
   if (!message) throw new ApiError(404, "Message not found");
+
+  if (message.role === "assistant") {
+    message = await Message.findOne({
+      conversation: message.conversation._id,
+      role: "user",
+      createdAt: { $lt: message.createdAt }
+    }).sort({ createdAt: -1 }).populate({
+      path: "conversation",
+      populate: { path: "documents" },
+    });
+    if (!message) throw new ApiError(404, "Preceding user message not found");
+    content = message.content;
+  }
 
   if (message.conversation.user.toString() !== req.user._id.toString()) {
     throw new ApiError(403, "You can only edit your own messages");
@@ -92,7 +112,7 @@ export const editAndRegenerateMessage = asyncHandler(async (req, res) => {
 
   // ── Step 1: Save the edited content — use update to avoid enum validation ──
   const savedUserMsg = await Message.findByIdAndUpdate(
-    messageId,
+    message._id,
     { $set: { content: content.trim(), featureUsed: featureMode } },
     { new: true, runValidators: false }
   );
@@ -214,5 +234,5 @@ export const deleteMessage = asyncHandler(async (req, res) => {
 
   await message.deleteOne();
 
-  return res.status(200).json(new ApiResponse(200, {}, "Message deleted successfully"));
+  return res.status(200).json(new ApiResponse(200, { deletedIds: [message._id] }, "Message deleted successfully"));
 });

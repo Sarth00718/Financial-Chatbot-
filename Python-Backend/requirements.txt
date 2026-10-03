@@ -43,12 +43,6 @@ unstructured==0.23.1
 # Upload
 python-multipart==0.0.12
 
-# DOCX support
-python-docx==1.1.2
-
 # Excel support
 pandas==2.2.3
 openpyxl==3.1.5
-
-# PPTX support
-python-pptx==1.0.2

@@ -248,15 +248,7 @@ export const enterpriseAPI = {
   advancedSearch: (q, type = 'all') =>
     api.get('/enterprise/search', { params: { q, type } }),
 
-  // Watchlist
-  getWatchlist: () => api.get('/enterprise/watchlist'),
-  addToWatchlist: (data) => api.post('/enterprise/watchlist', data),
-  removeFromWatchlist: (id) => api.delete(`/enterprise/watchlist/${id}`),
 
-  // Bookmarks
-  getBookmarks: () => api.get('/enterprise/bookmarks'),
-  createBookmark: (data) => api.post('/enterprise/bookmarks', data),
-  deleteBookmark: (id) => api.delete(`/enterprise/bookmarks/${id}`),
 };
 
 // Export default api instance for custom requests

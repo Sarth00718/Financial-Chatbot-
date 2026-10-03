@@ -22,7 +22,7 @@ import {
 import {
   Summarize, Calculate, Psychology, Warning, CompareArrows,
   Description, TrendingUp, Lightbulb, Assessment, Article,
-  BookmarkAdd, Visibility, AutoAwesome, ExpandLess, ExpandMore,
+  AutoAwesome, ExpandLess, ExpandMore,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -48,7 +48,6 @@ const EnterpriseInsights = ({ conversationId, hasDocuments }) => {
   const [loading, setLoading]             = useState(false);
   const [result, setResult]               = useState(null);
   const [dialogOpen, setDialogOpen]       = useState(false);
-  const [customQuestion, setCustomQuestion] = useState('');
   const [selectedType, setSelectedType]   = useState(null);
 
   const runAnalysis = async (analysisType) => {
@@ -63,46 +62,14 @@ const EnterpriseInsights = ({ conversationId, hasDocuments }) => {
       const response = await enterpriseAPI.analyze({
         analysisType,
         conversationId,
-        question: customQuestion,
       });
       setResult(response.data.data);
       setDialogOpen(true);
-      setCustomQuestion('');
       toast.success('Analysis complete');
     } catch (error) {
       toast.error(error.response?.data?.message || 'Analysis failed');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const saveBookmark = async () => {
-    if (!result) return;
-    try {
-      await enterpriseAPI.createBookmark({
-        title: selectedConfig?.label || 'Analysis',
-        content: result.answer,
-        conversationId,
-        analysisType: result.analysisType,
-      });
-      toast.success('Saved to bookmarks');
-    } catch {
-      toast.error('Failed to save bookmark');
-    }
-  };
-
-  const saveToWatchlist = async () => {
-    if (!result) return;
-    try {
-      await enterpriseAPI.addToWatchlist({
-        name: selectedConfig?.label || 'Analysis',
-        notes: result.answer ? result.answer.substring(0, 200) : '',
-        conversationId,
-        tags: [result.analysisType].filter(Boolean),
-      });
-      toast.success('Added to watchlist');
-    } catch {
-      toast.error('Failed to add to watchlist');
     }
   };
 
@@ -192,20 +159,6 @@ const EnterpriseInsights = ({ conversationId, hasDocuments }) => {
               bgcolor: 'background.default',
             }}
           >
-            {/* Optional focus question */}
-            <TextField
-              size="small"
-              fullWidth
-              placeholder="Optional: focus question for the analysis…"
-              value={customQuestion}
-              onChange={(e) => setCustomQuestion(e.target.value)}
-              disabled={!hasDocuments || loading}
-              sx={{
-                mb: 1.5,
-                '& .MuiInputBase-root': { borderRadius: 2, fontSize: '0.8125rem' },
-              }}
-            />
-
             {/* Analysis buttons — horizontal scrolling row on mobile, wrapping grid on desktop */}
             <Box
               sx={{
@@ -326,23 +279,7 @@ const EnterpriseInsights = ({ conversationId, hasDocuments }) => {
         </DialogContent>
 
         <DialogActions sx={{ px: 2.5, py: 1.5, gap: 1 }}>
-          <Button
-            size="small"
-            startIcon={<BookmarkAdd fontSize="small" />}
-            onClick={saveBookmark}
-            variant="outlined"
-          >
-            Save to bookmarks
-          </Button>
-          <Button
-            size="small"
-            startIcon={<Visibility fontSize="small" />}
-            onClick={saveToWatchlist}
-            variant="outlined"
-            color="success"
-          >
-            Add to watchlist
-          </Button>
+
           <Button size="small" onClick={() => setDialogOpen(false)} variant="contained" disableElevation>
             Done
           </Button>

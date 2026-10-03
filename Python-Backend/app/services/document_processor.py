@@ -19,8 +19,6 @@ from app.services.vector_store import vector_store
 from app.services.parsers.parser_factory import ParserFactory
 import app.services.parsers.basic_parsers
 import app.services.parsers.pdf_parser
-import app.services.parsers.pptx_parser
-import app.services.parsers.docx_parser
 
 class DocumentProcessor:
     """

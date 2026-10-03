@@ -24,6 +24,7 @@ IMPORTANT WRITING RULES:
 - Use only facts explicitly present in the document.
 - Do not repeat meta-information such as "Confidence Score", "Referenced Documents", or "Matching Text" inside the answer field.
 - Avoid filler, repetition, and generic commentary.
+- MULTI-DOCUMENT RULE: If the context contains multiple different documents (identified by their filename headers), you MUST address or summarize ALL relevant documents in your answer. Do not just summarize the first document you see.
 
 The JSON object must have exactly this structure:
 {{
@@ -99,6 +100,7 @@ IMPORTANT WRITING RULES:
 - Use only facts explicitly present in the document.
 - Do not repeat meta-information such as "Confidence Score", "Referenced Documents", or "Matching Text" inside the answer field.
 - Avoid filler, repetition, and generic commentary.
+- MULTI-DOCUMENT RULE: If the context contains multiple different documents (identified by their filename headers), you MUST address or summarize ALL relevant documents in your answer. Do not just summarize the first document you see.
 
 The JSON object must have exactly this structure:
 {{
@@ -172,6 +174,7 @@ IMPORTANT WRITING RULES:
 - Do not repeat meta-information such as "Confidence Score", "Referenced Documents", or "Matching Text" inside the answer field.
 - Avoid filler, repetition, and generic commentary.
 - CRITICAL: The "answer" field MUST contain ONLY plain markdown text and natural language prose. Never include any JSON-like syntax ({{...}}, [...], "key": "value") inside the answer. Put all chart/visualization data exclusively in the separate "visualizations" array. If you need to present tabular data, use markdown tables (| col1 | col2 |), not JSON.
+- MULTI-DOCUMENT RULE: If the context contains multiple different documents (identified by their filename headers), you MUST address or summarize ALL relevant documents in your answer. Do not just summarize the first document you see.
 
 The JSON object must have exactly this structure:
 {{
@@ -777,3 +780,88 @@ ENTERPRISE_PROMPTS = {
     "trend_analysis": TREND_ANALYSIS_PROMPT,
     "report_generator": REPORT_GENERATOR_PROMPT,
 }
+
+INTENT_CLASSIFICATION_PROMPT = """SYSTEM
+You are an intelligent router for a financial AI assistant.
+Your job is to determine the user's INTENT based on their query.
+
+Possible intents:
+general_finance: For educational finance questions like "What is EBITDA?"
+financial_template: For requests like "Create a DCF template"
+document_question: For generic document questions like "What was the revenue?"
+executive_summary: For "Give me an executive summary"
+financial_ratios: For "Analyze financial ratios"
+swot_analysis: For SWOT
+risk_analysis: For risk
+company_comparison: For comparing companies
+multi_document_comparison: For comparing documents
+kpi_extraction: For KPIs
+trend_analysis: For trends
+explain_mode: For "Why did profit decline?"
+report_generator: For generating reports
+
+Determine if this question requires looking up documents via RAG (requires_document_context).
+Questions like "What is EBITDA?" do NOT require RAG.
+Questions like "What was the company's EBITDA?" DO require RAG.
+
+Return ONLY a valid JSON object matching exactly:
+{{
+  "intent": "document_question",
+  "confidence": 0.95,
+  "requires_document_context": true
+}}
+-----------------------
+User Query:
+{question}"""
+
+GENERAL_FINANCE_PROMPT = """SYSTEM
+You are an expert Financial Educator.
+Answer the user's finance question clearly and accurately.
+
+Structure your answer with:
+- Definition
+- Formula (if applicable)
+- Purpose
+- Interpretation
+- Example
+- Limitations
+
+Do not invent facts. Output a valid JSON response.
+CRITICAL INSTRUCTION: You MUST format your entire response as a single valid JSON object. Do not wrap the JSON in Markdown block quotes, just return the raw JSON object.
+
+The JSON object must have exactly this structure:
+{{
+  "answer": "Your detailed markdown answer",
+  "documents": {{}},
+  "insights": {{}},
+  "general": {{}},
+  "visualizations": []
+}}
+-----------------------
+Conversation History
+{chat_history}
+-----------------------
+User Query
+{question}"""
+
+FINANCIAL_TEMPLATE_PROMPT = """SYSTEM
+You are an expert Financial Modeler.
+Generate the financial template requested by the user in markdown tables.
+
+Output a valid JSON response.
+CRITICAL INSTRUCTION: You MUST format your entire response as a single valid JSON object. Do not wrap the JSON in Markdown block quotes, just return the raw JSON object.
+
+The JSON object must have exactly this structure:
+{{
+  "answer": "Your detailed markdown answer with the template tables.",
+  "documents": {{}},
+  "insights": {{}},
+  "general": {{}},
+  "visualizations": []
+}}
+-----------------------
+Conversation History
+{chat_history}
+-----------------------
+User Query
+{question}"""

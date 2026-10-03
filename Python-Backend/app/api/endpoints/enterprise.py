@@ -5,7 +5,7 @@ from app.schemas.domain_schemas import (
     EnterpriseChartRequest,
     EnterpriseChartResponse,
 )
-from app.services.rag.enterprise_workflow import enterprise_service
+from app.services.rag.chat_workflow import chat_service
 
 router = APIRouter()
 
@@ -20,7 +20,7 @@ async def enterprise_analyze(request: EnterpriseAnalysisRequest):
             f"\n[ENTERPRISE] {request.analysisType} on {len(request.vectorNamespaces)} document(s)"
         )
 
-        result = await enterprise_service.run_enterprise_analysis(
+        result = await chat_service.enterprise_analysis(
             analysis_type=request.analysisType,
             namespaces=request.vectorNamespaces,
             question=request.question,
@@ -60,7 +60,7 @@ async def enterprise_charts(request: EnterpriseChartRequest):
             f"\n[ENTERPRISE CHARTS] {request.analysisType} on {len(request.vectorNamespaces)} document(s)"
         )
 
-        result = await enterprise_service.run_enterprise_charts(
+        result = await chat_service.enterprise_charts(
             analysis_type=request.analysisType,
             namespaces=request.vectorNamespaces,
             question=request.question,

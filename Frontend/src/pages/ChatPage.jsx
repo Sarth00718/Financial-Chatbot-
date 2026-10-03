@@ -10,7 +10,7 @@ import {
 } from '@mui/material';
 import {
   Menu as MenuIcon, SmartToy, ContentCopy, Insights,
-  AdminPanelSettings, Bookmark, Visibility, Dashboard, Logout,
+  AdminPanelSettings, Dashboard, Logout,
   CheckCircle, RadioButtonUnchecked,
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -345,15 +345,22 @@ const ChatPage = () => {
   const handleVoiceTranscript = (transcript) => setInput(transcript);
   const handleSuggestionClick = (suggestion) => { if (!suggestion || isLoading || !currentConversationId) return; setInput(suggestion); };
   const handleMessageUpdate = (messageId, newContent) => setMessages((prev) => prev.map((msg) => msg._id === messageId ? { ...msg, content: newContent } : msg));
-  const handleMessageDelete = (messageId) => setMessages((prev) => prev.filter((msg) => msg._id !== messageId));
+  const handleMessageDelete = (deletedIds) => {
+    const ids = Array.isArray(deletedIds) ? deletedIds : [deletedIds];
+    setMessages((prev) => prev.filter((msg) => !ids.includes(msg._id)));
+  };
   const handleRegenerateResponse = (data) => {
+    if (!data || !data.userMessage) return;
     const userMessageId = data.userMessage._id;
     setMessages((prev) => {
       const userMsgIndex = prev.findIndex((m) => m._id === userMessageId);
       if (userMsgIndex === -1) return prev;
       const updated = prev.slice(0, userMsgIndex + 1);
       updated[userMsgIndex] = data.userMessage;
-      return [...updated, data.assistantMessage];
+      if (data.assistantMessage) {
+        return [...updated, data.assistantMessage];
+      }
+      return updated;
     });
   };
 
@@ -451,8 +458,7 @@ const ChatPage = () => {
               <Divider />
               {isAdmin && <MenuItem onClick={() => { setUserMenuAnchor(null); navigate('/admin'); }}><ListItemIcon><AdminPanelSettings fontSize="small" /></ListItemIcon><ListItemText>Admin dashboard</ListItemText></MenuItem>}
               <MenuItem onClick={() => { setUserMenuAnchor(null); navigate('/executive'); }}><ListItemIcon><Insights fontSize="small" /></ListItemIcon><ListItemText>Executive dashboard</ListItemText></MenuItem>
-              <MenuItem onClick={() => { setUserMenuAnchor(null); navigate('/bookmarks'); }}><ListItemIcon><Bookmark fontSize="small" /></ListItemIcon><ListItemText>Bookmarks</ListItemText></MenuItem>
-              <MenuItem onClick={() => { setUserMenuAnchor(null); navigate('/watchlist'); }}><ListItemIcon><Visibility fontSize="small" /></ListItemIcon><ListItemText>Watchlist</ListItemText></MenuItem>
+
               <MenuItem onClick={() => { setUserMenuAnchor(null); navigate('/dashboard'); }}><ListItemIcon><Dashboard fontSize="small" /></ListItemIcon><ListItemText>My dashboard</ListItemText></MenuItem>
               <Divider />
               <MenuItem onClick={handleLogout} sx={{ color: 'error.main' }}><ListItemIcon><Logout fontSize="small" color="error" /></ListItemIcon><ListItemText>Log out</ListItemText></MenuItem>
@@ -536,21 +542,21 @@ const ChatPage = () => {
             {/* Typing indicator */}
             <AnimatePresence>
               {isLoading && hasMessages && (
-                <Stack
+                  <Stack
                   component={motion.div}
                   key="typing"
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 6 }}
                   direction="row"
-                  alignItems="flex-end"
-                  gap={1.5}
-                  sx={{ mb: 3, pl: 1 }}
+                  alignItems="flex-start"
+                  gap={2}
+                  sx={{ mb: 3, px: { xs: 1, sm: 2 }, maxWidth: '850px', mx: 'auto', width: '100%' }}
                 >
-                  <Avatar sx={{ width: 28, height: 28, bgcolor: alpha('#7C3AED', 0.9), flexShrink: 0, boxShadow: '0 2px 8px rgba(124,58,237,0.2)' }}>
-                    <Insights sx={{ fontSize: 14 }} />
+                  <Avatar variant="rounded" sx={{ width: 32, height: 32, bgcolor: '#10a37f', flexShrink: 0, borderRadius: '8px' }}>
+                    <SmartToy sx={{ fontSize: 20, color: '#fff' }} />
                   </Avatar>
-                  <Paper variant="outlined" sx={{ borderRadius: '18px 18px 18px 4px', px: 2, py: 1.25, display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
+                  <Paper elevation={0} sx={{ px: 2, py: 1.25, display: 'inline-flex', alignItems: 'center', gap: 0.75, bgcolor: 'transparent' }}>
                     <TypingDot delay="0s" />
                     <TypingDot delay="0.2s" />
                     <TypingDot delay="0.4s" />

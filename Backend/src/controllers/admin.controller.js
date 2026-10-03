@@ -137,8 +137,8 @@ export const updateUserRole = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid user ID");
   }
 
-  if (!["user", "admin"].includes(role)) {
-    throw new ApiError(400, "Invalid role. Must be 'user' or 'admin'");
+  if (!["user", "admin", "analyst"].includes(role)) {
+    throw new ApiError(400, "Invalid role. Must be 'user', 'admin' or 'analyst'");
   }
 
   // Prevent self-demotion

@@ -1,29 +1,68 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Box, Typography, Paper, Grid, Chip, Button, IconButton, Tooltip,
-  TextField, InputAdornment, Stack, alpha, Switch, Avatar,
-  Dialog, DialogTitle, DialogContent, DialogActions, MenuItem, LinearProgress,
+  TextField, InputAdornment, Stack, alpha, Avatar,
+  Dialog, DialogTitle, DialogContent, DialogActions, MenuItem
 } from '@mui/material';
 import {
-  People, Assessment, Memory, Shield, Search, MoreVert,
-  Block, CheckCircle, Delete, AdminPanelSettings, Refresh, AutoAwesome,
+  PeopleOutline, Assessment, Memory, Shield, Search, MoreVert,
+  Block, CheckCircle, Delete, Refresh, AutoAwesomeOutlined,
+  AdminPanelSettingsOutlined
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { adminAPI } from '../utils/api';
 import { DashboardSkeleton, TableSkeleton } from '../components/ui/LoadingSkeleton';
 import toast from 'react-hot-toast';
 
-const StatCard = ({ icon: Icon, label, value, color, subtitle }) => (
-  <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-    <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2, height: '100%' }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        <Box sx={{ width: 42, height: 42, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: alpha(color || '#2563EB', 0.1) }}>
-          <Icon sx={{ fontSize: 20, color: color || '#2563EB' }} />
+const StatCard = ({ icon: Icon, label, value, color, subtitle, delay }) => (
+  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay, ease: "easeOut" }}>
+    <Paper 
+      elevation={0}
+      sx={{ 
+        p: 3, 
+        borderRadius: 4, 
+        height: '100%', 
+        bgcolor: 'background.paper',
+        border: '1px solid',
+        borderColor: alpha(color, 0.2),
+        position: 'relative',
+        overflow: 'hidden',
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', 
+        '&:hover': { 
+          transform: 'translateY(-4px)',
+          boxShadow: `0 12px 24px -8px ${alpha(color, 0.25)}`,
+          borderColor: color,
+        } 
+      }}
+    >
+      <Box
+        sx={{
+          position: 'absolute',
+          top: -20,
+          right: -20,
+          width: 100,
+          height: 100,
+          borderRadius: '50%',
+          background: `radial-gradient(circle, ${alpha(color, 0.15)} 0%, ${alpha(color, 0)} 70%)`,
+          zIndex: 0,
+        }}
+      />
+      <Box sx={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Box sx={{ width: 48, height: 48, borderRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: alpha(color, 0.1), color: color }}>
+          <Icon sx={{ fontSize: 24 }} />
         </Box>
         <Box>
-          <Typography variant="h4" fontWeight={800} sx={{ letterSpacing: '-0.02em', lineHeight: 1.1 }}>{value ?? '—'}</Typography>
-          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', fontWeight: 500 }}>{label}</Typography>
-          {subtitle && <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', display: 'block' }}>{subtitle}</Typography>}
+          <Typography variant="h3" fontWeight={800} sx={{ mb: 0.5, letterSpacing: '-0.03em', color: 'text.primary' }}>
+            {value ?? '—'}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" fontWeight={600} sx={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.7rem' }}>
+            {label}
+          </Typography>
+          {subtitle && (
+            <Typography variant="caption" sx={{ color: color, fontWeight: 700, mt: 0.5, display: 'block' }}>
+              {subtitle}
+            </Typography>
+          )}
         </Box>
       </Box>
     </Paper>
@@ -33,6 +72,7 @@ const StatCard = ({ icon: Icon, label, value, color, subtitle }) => (
 const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
+  const [health, setHealth] = useState(null);
   const [users, setUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUser, setSelectedUser] = useState(null);
@@ -42,12 +82,14 @@ const AdminDashboard = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      const [statsRes, usersRes] = await Promise.all([
+      const [statsRes, usersRes, healthRes] = await Promise.all([
         adminAPI.getStatistics(),
         adminAPI.getUsers({ limit: 50 }),
+        adminAPI.getHealth().catch(() => ({ data: { data: null } }))
       ]);
       setStats(statsRes.data.data);
       setUsers(usersRes.data.data?.users || usersRes.data.data || []);
+      setHealth(healthRes.data.data);
     } catch (err) {
       console.error('Failed to load admin data:', err);
       toast.error('Failed to load admin data');
@@ -99,200 +141,233 @@ const AdminDashboard = () => {
 
   if (loading) return <DashboardSkeleton />;
 
+  const formatUptime = (seconds) => {
+    if (!seconds) return '99.9%';
+    const days = Math.floor(seconds / (3600 * 24));
+    if (days > 0) return `${days}d uptime`;
+    const hours = Math.floor((seconds % (3600 * 24)) / 3600);
+    if (hours > 0) return `${hours}h uptime`;
+    const mins = Math.floor((seconds % 3600) / 60);
+    return `${mins}m uptime`;
+  };
+
   const statCards = [
-    { icon: People, label: 'Total Users', value: stats?.totalUsers ?? 0, color: '#2563EB', subtitle: `${stats?.activeUsers ?? 0} active` },
-    { icon: Assessment, label: 'Total Conversations', value: stats?.totalConversations ?? 0, color: '#16A34A' },
-    { icon: Memory, label: 'System Uptime', value: stats?.uptime ?? '99.9%', color: '#7C3AED', subtitle: 'Last 30 days' },
-    { icon: Shield, label: 'Active Sessions', value: stats?.activeSessions ?? 0, color: '#F59E0B' },
+    { icon: PeopleOutline, label: 'Total Users', value: stats?.overview?.totalUsers ?? 0, color: '#2563EB', subtitle: `${stats?.overview?.activeUsers ?? 0} active`, delay: 0.1 },
+    { icon: Assessment, label: 'Conversations', value: stats?.overview?.totalConversations ?? 0, color: '#16A34A', delay: 0.2 },
+    { icon: Memory, label: 'System Uptime', value: formatUptime(health?.uptime), color: '#7C3AED', subtitle: health?.database === 'connected' ? 'DB Connected' : 'DB Status Unknown', delay: 0.3 },
+    { icon: Shield, label: 'Analysis Runs', value: stats?.overview?.totalDocuments ?? 0, color: '#F59E0B', delay: 0.4 },
   ];
 
   return (
-    <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1200, mx: 'auto' }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 1 }}>
-        <Box />
-        <Button variant="outlined" size="small" startIcon={<Refresh />} onClick={fetchData} sx={{ borderRadius: 2 }}>
-          Refresh
+    <Box sx={{ p: { xs: 2, md: 4, lg: 5 }, maxWidth: 1400, mx: 'auto' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 5, flexWrap: 'wrap', gap: 2 }}>
+        <Box>
+          <Typography variant="h4" fontWeight={800} sx={{ letterSpacing: '-0.02em', mb: 1 }}>
+            Admin Control Center
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            Manage users, monitor system health, and configure access.
+          </Typography>
+        </Box>
+        <Button 
+          variant="contained" 
+          size="medium" 
+          startIcon={<Refresh />} 
+          onClick={fetchData} 
+          sx={{ borderRadius: 2, px: 3, py: 1, boxShadow: 'none', '&:hover': { boxShadow: '0 4px 12px rgba(37,99,235,0.2)' } }}
+        >
+          Refresh Data
         </Button>
       </Box>
 
       {/* Stats */}
-      <Grid container spacing={2} sx={{ mb: 3 }}>
-        {statCards.map((s) => <Grid item xs={6} md={3} key={s.label}><StatCard {...s} /></Grid>)}
+      <Grid container spacing={3} sx={{ mb: 5 }}>
+        {statCards.map((s) => <Grid item xs={12} sm={6} md={3} key={s.label}><StatCard {...s} /></Grid>)}
       </Grid>
 
       {/* Users table */}
-      <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-        <Box sx={{ px: 2.5, py: 2, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-          <Typography variant="subtitle2" fontWeight={700} sx={{ flex: 1 }}>Users ({users.length})</Typography>
-          <TextField
-            size="small"
-            placeholder="Search users..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            InputProps={{
-              startAdornment: <InputAdornment position="start"><Search sx={{ fontSize: 16 }} /></InputAdornment>,
-              sx: { fontSize: '0.8125rem', height: 34, width: 220 },
-            }}
-          />
-        </Box>
-
-        {filteredUsers.length === 0 ? (
-          <Box sx={{ textAlign: 'center', py: 6 }}>
-            <AutoAwesome sx={{ fontSize: 32, color: 'text.disabled', mb: 1 }} />
-            <Typography variant="body2" color="text.secondary">{searchQuery ? 'No users match your search' : 'No users found'}</Typography>
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.5 }}>
+        <Paper elevation={0} sx={{ borderRadius: 4, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
+          <Box sx={{ px: 3, py: 2.5, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap', bgcolor: alpha('#94A3B8', 0.02) }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1 }}>
+              <AdminPanelSettingsOutlined sx={{ color: 'primary.main' }} />
+              <Typography variant="h6" fontWeight={700}>User Directory</Typography>
+              <Chip size="small" label={`${users.length} Users`} sx={{ ml: 1, bgcolor: alpha('#2563EB', 0.1), color: '#2563EB', fontWeight: 700 }} />
+            </Box>
+            <TextField
+              size="small"
+              placeholder="Search by name or email..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              InputProps={{
+                startAdornment: <InputAdornment position="start"><Search sx={{ fontSize: 18 }} /></InputAdornment>,
+                sx: { fontSize: '0.875rem', borderRadius: 2, width: { xs: '100%', sm: 280 }, bgcolor: 'background.paper' },
+              }}
+            />
           </Box>
-        ) : (
-          <Box sx={{ overflowX: 'auto' }}>
-            <Box component="table" sx={{ width: '100%', borderCollapse: 'collapse' }}>
-              <Box component="thead">
-                <Box component="tr" sx={{ borderBottom: '1px solid', borderColor: 'divider', bgcolor: alpha('#0A0D14', 0.02) }}>
-                  {['User', 'Role', 'Status', 'Conversations', 'Joined', 'Actions'].map((h) => (
-                    <Box key={h} component="th" sx={{ textAlign: 'left', px: 2.5, py: 1.5, fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'text.secondary' }}>
-                      {h}
+
+          {filteredUsers.length === 0 ? (
+            <Box sx={{ textAlign: 'center', py: 8 }}>
+              <AutoAwesomeOutlined sx={{ fontSize: 40, color: 'text.disabled', mb: 2 }} />
+              <Typography variant="h6" fontWeight={700} sx={{ mb: 1 }}>{searchQuery ? 'No matches found' : 'No users found'}</Typography>
+              <Typography variant="body2" color="text.secondary">
+                {searchQuery ? 'Try adjusting your search terms.' : 'The system currently has no registered users.'}
+              </Typography>
+            </Box>
+          ) : (
+            <Box sx={{ overflowX: 'auto' }}>
+              <Box component="table" sx={{ width: '100%', borderCollapse: 'collapse' }}>
+                <Box component="thead">
+                  <Box component="tr" sx={{ borderBottom: '1px solid', borderColor: 'divider', bgcolor: alpha('#94A3B8', 0.05) }}>
+                    {['User', 'Role', 'Status', 'Conversations', 'Joined', 'Actions'].map((h) => (
+                      <Box key={h} component="th" sx={{ textAlign: 'left', px: 3, py: 2, fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'text.secondary' }}>
+                        {h}
+                      </Box>
+                    ))}
+                  </Box>
+                </Box>
+                <Box component="tbody">
+                  {filteredUsers.map((user, i) => (
+                    <Box
+                      key={user._id}
+                      component="tr"
+                      sx={{
+                        borderBottom: '1px solid', borderColor: 'divider',
+                        transition: 'background 0.2s',
+                        '&:hover': { bgcolor: alpha('#2563EB', 0.02) },
+                      }}
+                    >
+                      <Box component="td" sx={{ px: 3, py: 2 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                          <Avatar sx={{ width: 36, height: 36, fontSize: '1rem', fontWeight: 700, bgcolor: user.role === 'admin' ? 'error.main' : user.role === 'analyst' ? 'warning.main' : 'primary.main' }}>
+                            {user.name?.charAt(0)?.toUpperCase()}
+                          </Avatar>
+                          <Box>
+                            <Typography variant="body2" fontWeight={700} sx={{ fontSize: '0.875rem' }}>{user.name}</Typography>
+                            <Typography variant="caption" color="text.secondary">{user.email}</Typography>
+                          </Box>
+                        </Box>
+                      </Box>
+                      <Box component="td" sx={{ px: 3, py: 2 }}>
+                        <Chip
+                          size="small"
+                          label={user.role}
+                          color={user.role === 'admin' ? 'error' : user.role === 'analyst' ? 'warning' : 'primary'}
+                          sx={{ height: 24, fontSize: '0.7rem', fontWeight: 700, textTransform: 'capitalize', borderRadius: 1.5 }}
+                        />
+                      </Box>
+                      <Box component="td" sx={{ px: 3, py: 2 }}>
+                        <Chip
+                          size="small"
+                          icon={user.isActive ? <CheckCircle sx={{ fontSize: 14 }} /> : <Block sx={{ fontSize: 14 }} />}
+                          label={user.isActive ? 'Active' : 'Blocked'}
+                          color={user.isActive ? 'success' : 'error'}
+                          variant="outlined"
+                          sx={{ height: 24, fontSize: '0.7rem', fontWeight: 700, borderRadius: 1.5 }}
+                        />
+                      </Box>
+                      <Box component="td" sx={{ px: 3, py: 2 }}>
+                        <Typography variant="body2" fontWeight={600}>{user.conversationCount ?? 0}</Typography>
+                      </Box>
+                      <Box component="td" sx={{ px: 3, py: 2 }}>
+                        <Typography variant="body2" color="text.secondary">
+                          {user.createdAt ? new Date(user.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                        </Typography>
+                      </Box>
+                      <Box component="td" sx={{ px: 3, py: 2 }}>
+                        <Stack direction="row" gap={0.5}>
+                          <Tooltip title="View details">
+                            <IconButton size="small" onClick={() => { setSelectedUser(user); setDetailOpen(true); }} sx={{ width: 32, height: 32, bgcolor: alpha('#94A3B8', 0.1), '&:hover': { bgcolor: alpha('#94A3B8', 0.2) } }}>
+                              <MoreVert sx={{ fontSize: 16 }} />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title={user.isActive ? 'Block user' : 'Activate user'}>
+                            <IconButton size="small" onClick={() => handleToggleStatus(user._id, user.isActive)} sx={{ width: 32, height: 32, bgcolor: alpha(user.isActive ? '#EF4444' : '#10B981', 0.1), '&:hover': { bgcolor: alpha(user.isActive ? '#EF4444' : '#10B981', 0.2) } }}>
+                              {user.isActive ? <Block sx={{ fontSize: 16, color: 'error.main' }} /> : <CheckCircle sx={{ fontSize: 16, color: 'success.main' }} />}
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Change role">
+                            <IconButton size="small" onClick={() => { setSelectedUser(user); setNewRole(user.role); setRoleDialogOpen(true); }} sx={{ width: 32, height: 32, bgcolor: alpha('#2563EB', 0.1), '&:hover': { bgcolor: alpha('#2563EB', 0.2) } }}>
+                              <Shield sx={{ fontSize: 16, color: 'primary.main' }} />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Delete user">
+                            <IconButton size="small" onClick={() => handleDeleteUser(user._id)} sx={{ width: 32, height: 32, bgcolor: alpha('#EF4444', 0.1), '&:hover': { bgcolor: alpha('#EF4444', 0.2) } }}>
+                              <Delete sx={{ fontSize: 16, color: 'error.main' }} />
+                            </IconButton>
+                          </Tooltip>
+                        </Stack>
+                      </Box>
                     </Box>
                   ))}
                 </Box>
               </Box>
-              <Box component="tbody">
-                {loading ? <TableSkeleton /> : filteredUsers.map((user, i) => (
-                  <Box
-                    key={user._id}
-                    component="tr"
-                    sx={{
-                      borderBottom: '1px solid', borderColor: 'divider',
-                      transition: 'background 0.12s',
-                      '&:hover': { bgcolor: alpha('#2563EB', 0.02) },
-                      bgcolor: i % 2 === 0 ? 'transparent' : alpha('#0A0D14', 0.015),
-                    }}
-                  >
-                    <Box component="td" sx={{ px: 2.5, py: 1.5 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                        <Avatar sx={{ width: 30, height: 30, fontSize: '0.75rem', bgcolor: user.role === 'admin' ? 'error.main' : 'primary.main' }}>
-                          {user.name?.charAt(0)?.toUpperCase()}
-                        </Avatar>
-                        <Box>
-                          <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.8125rem' }}>{user.name}</Typography>
-                          <Typography variant="caption" color="text.secondary">{user.email}</Typography>
-                        </Box>
-                      </Box>
-                    </Box>
-                    <Box component="td" sx={{ px: 2.5, py: 1.5 }}>
-                      <Chip
-                        size="small"
-                        label={user.role}
-                        color={user.role === 'admin' ? 'error' : user.role === 'analyst' ? 'warning' : 'default'}
-                        variant="outlined"
-                        sx={{ height: 22, fontSize: '0.65rem', fontWeight: 600, textTransform: 'capitalize' }}
-                      />
-                    </Box>
-                    <Box component="td" sx={{ px: 2.5, py: 1.5 }}>
-                      <Chip
-                        size="small"
-                        icon={user.isActive ? <CheckCircle sx={{ fontSize: 12 }} /> : <Block sx={{ fontSize: 12 }} />}
-                        label={user.isActive ? 'Active' : 'Blocked'}
-                        color={user.isActive ? 'success' : 'error'}
-                        sx={{ height: 22, fontSize: '0.65rem', fontWeight: 600 }}
-                      />
-                    </Box>
-                    <Box component="td" sx={{ px: 2.5, py: 1.5 }}>
-                      <Typography variant="body2" sx={{ fontSize: '0.8125rem' }}>{user.conversationCount ?? 0}</Typography>
-                    </Box>
-                    <Box component="td" sx={{ px: 2.5, py: 1.5 }}>
-                      <Typography variant="caption" color="text.secondary">
-                        {user.createdAt ? new Date(user.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
-                      </Typography>
-                    </Box>
-                    <Box component="td" sx={{ px: 2.5, py: 1.5 }}>
-                      <Stack direction="row" gap={0.25}>
-                        <Tooltip title="View details">
-                          <IconButton size="small" onClick={() => { setSelectedUser(user); setDetailOpen(true); }} sx={{ width: 28, height: 28 }}>
-                            <MoreVert sx={{ fontSize: 15 }} />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title={user.isActive ? 'Block user' : 'Activate user'}>
-                          <IconButton size="small" onClick={() => handleToggleStatus(user._id, user.isActive)} sx={{ width: 28, height: 28 }}>
-                            {user.isActive ? <Block sx={{ fontSize: 15, color: 'error.main' }} /> : <CheckCircle sx={{ fontSize: 15, color: 'success.main' }} />}
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Change role">
-                          <IconButton size="small" onClick={() => { setSelectedUser(user); setNewRole(user.role); setRoleDialogOpen(true); }} sx={{ width: 28, height: 28 }}>
-                            <Shield sx={{ fontSize: 15 }} />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete user">
-                          <IconButton size="small" onClick={() => handleDeleteUser(user._id)} sx={{ width: 28, height: 28 }}>
-                            <Delete sx={{ fontSize: 15, color: 'error.main' }} />
-                          </IconButton>
-                        </Tooltip>
-                      </Stack>
-                    </Box>
-                  </Box>
-                ))}
-              </Box>
             </Box>
-          </Box>
-        )}
-      </Paper>
+          )}
+        </Paper>
+      </motion.div>
 
       {/* User detail dialog */}
-      <Dialog open={detailOpen} onClose={() => setDetailOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={detailOpen} onClose={() => setDetailOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 4, p: 1 } }}>
         {selectedUser && (
           <>
-            <DialogTitle>User Details</DialogTitle>
+            <DialogTitle sx={{ pb: 1, fontWeight: 800 }}>User Details</DialogTitle>
             <DialogContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-                <Avatar sx={{ width: 48, height: 48, fontSize: '1.125rem', bgcolor: 'primary.main' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, mb: 4, p: 3, bgcolor: alpha('#94A3B8', 0.05), borderRadius: 3 }}>
+                <Avatar sx={{ width: 64, height: 64, fontSize: '1.5rem', fontWeight: 700, bgcolor: selectedUser.role === 'admin' ? 'error.main' : selectedUser.role === 'analyst' ? 'warning.main' : 'primary.main' }}>
                   {selectedUser.name?.charAt(0)?.toUpperCase()}
                 </Avatar>
                 <Box>
-                  <Typography variant="h6" fontWeight={700}>{selectedUser.name}</Typography>
-                  <Typography variant="body2" color="text.secondary">{selectedUser.email}</Typography>
+                  <Typography variant="h5" fontWeight={800} sx={{ letterSpacing: '-0.02em' }}>{selectedUser.name}</Typography>
+                  <Typography variant="body1" color="text.secondary">{selectedUser.email}</Typography>
                 </Box>
               </Box>
-              <Grid container spacing={2}>
+              <Grid container spacing={3} sx={{ px: 1 }}>
                 {[
-                  { label: 'Role', value: selectedUser.role },
-                  { label: 'Status', value: selectedUser.isActive ? 'Active' : 'Blocked' },
+                  { label: 'Role', value: selectedUser.role, color: 'primary.main' },
+                  { label: 'Status', value: selectedUser.isActive ? 'Active' : 'Blocked', color: selectedUser.isActive ? 'success.main' : 'error.main' },
                   { label: 'Joined', value: selectedUser.createdAt ? new Date(selectedUser.createdAt).toLocaleDateString() : '—' },
                   { label: 'Conversations', value: selectedUser.conversationCount ?? 0 },
                 ].map((f) => (
                   <Grid item xs={6} key={f.label}>
-                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.675rem', fontWeight: 600 }}>{f.label}</Typography>
-                    <Typography variant="body2" fontWeight={600}>{f.value}</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{f.label}</Typography>
+                    <Typography variant="h6" fontWeight={700} sx={{ color: f.color || 'text.primary', textTransform: f.label === 'Role' ? 'capitalize' : 'none' }}>{f.value}</Typography>
                   </Grid>
                 ))}
               </Grid>
             </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setDetailOpen(false)} variant="outlined" size="small">Close</Button>
+            <DialogActions sx={{ pt: 3, pb: 2, px: 3 }}>
+              <Button onClick={() => setDetailOpen(false)} variant="contained" size="large" fullWidth sx={{ borderRadius: 2, fontWeight: 700 }}>Close Details</Button>
             </DialogActions>
           </>
         )}
       </Dialog>
 
       {/* Role change dialog */}
-      <Dialog open={roleDialogOpen} onClose={() => setRoleDialogOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Change Role</DialogTitle>
+      <Dialog open={roleDialogOpen} onClose={() => setRoleDialogOpen(false)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 4, p: 1 } }}>
+        <DialogTitle sx={{ pb: 1, fontWeight: 800 }}>Change Access Role</DialogTitle>
         <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Update role for {selectedUser?.name}
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Select a new system role for <strong>{selectedUser?.name}</strong>.
           </Typography>
           <TextField
             select
             fullWidth
-            size="small"
             value={newRole}
             onChange={(e) => setNewRole(e.target.value)}
-            label="Role"
+            label="System Role"
+            InputProps={{ sx: { borderRadius: 2 } }}
           >
             {['user', 'analyst', 'admin'].map((r) => (
-              <MenuItem key={r} value={r} sx={{ textTransform: 'capitalize' }}>{r}</MenuItem>
+              <MenuItem key={r} value={r} sx={{ textTransform: 'capitalize', fontWeight: 600, py: 1.5 }}>
+                {r}
+              </MenuItem>
             ))}
           </TextField>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setRoleDialogOpen(false)} size="small">Cancel</Button>
-          <Button onClick={handleRoleChange} variant="contained" size="small">Save</Button>
+        <DialogActions sx={{ pt: 2, pb: 2, px: 3, gap: 1 }}>
+          <Button onClick={() => setRoleDialogOpen(false)} variant="outlined" sx={{ borderRadius: 2, flex: 1, fontWeight: 700 }}>Cancel</Button>
+          <Button onClick={handleRoleChange} variant="contained" sx={{ borderRadius: 2, flex: 1, fontWeight: 700, boxShadow: 'none' }}>Save Changes</Button>
         </DialogActions>
       </Dialog>
     </Box>

@@ -10,7 +10,7 @@ import { z } from "zod";
  */
 export const updateUserRoleSchema = z.object({
   body: z.object({
-    role: z.enum(["user", "admin"]),
+    role: z.enum(["user", "admin", "analyst"]),
   }),
 });
 
@@ -31,7 +31,7 @@ export const getUsersQuerySchema = z.object({
     page: z.string().optional(),
     limit: z.string().optional(),
     search: z.string().optional(),
-    role: z.enum(["user", "admin"]).optional(),
+    role: z.enum(["user", "admin", "analyst"]).optional(),
     isActive: z.enum(["true", "false"]).optional(),
   }),
 });

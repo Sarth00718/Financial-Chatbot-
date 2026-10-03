@@ -1,38 +1,33 @@
 # Dependencies
 node_modules/
-package-lock.json
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
 
 # Environment variables
 .env
 .env.local
 .env.production
+*.env
 
 # Logs
+logs/
 *.log
 npm-debug.log*
-logs/
+yarn-debug.log*
+yarn-error.log*
+combined.log
+error.log
+python_logs.json
+backend_logs*.txt
 
-# Python
-__pycache__/
-*.py[cod]
-venv/
-env/
-*.egg-info/
-.pytest_cache/
-
-# Vector store data (keep structure, ignore data)
-vector_store/**/*.faiss
-vector_store/**/*.pkl
-
-# Uploaded files (keep folder, ignore files)
-uploads/*.pdf
-uploads/*.xlsx
-uploads/*.csv
-uploads/*.xls
-
-# Build output
+# Build outputs
 dist/
 build/
+*.egg-info/
 .next/
 out/
 
@@ -41,28 +36,35 @@ out/
 .idea/
 *.swp
 *.swo
-*.sublime-*
-
-# OS files
+*~
 .DS_Store
-Thumbs.db
-desktop.ini
 
 # Testing
 coverage/
 .nyc_output/
-*.test.js.snap
+.pytest_cache/
+
+# Uploads
+uploads/*
+!uploads/.gitkeep
+
+# Vector stores
+vector_store/
+*.faiss
+*.pkl
 
 # Temporary files
 *.tmp
 *.temp
 .cache/
 
-# Database
-*.db
-*.sqlite
+# OS
+Thumbs.db
+.DS_Store
+
+# Docker
+.dockerignore
 
 # Misc
-.env.backup
-cookies.txt
-admin-cookies.txt
+*.bak
+*.orig

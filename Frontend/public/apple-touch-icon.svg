@@ -1,8 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" fill="none">
-  <rect width="180" height="180" rx="36" fill="#2563eb"/>
-  <rect x="38" y="90" width="22" height="52" rx="6" fill="white" opacity="0.9"/>
-  <rect x="79" y="52" width="22" height="90" rx="6" fill="white" opacity="0.7"/>
-  <rect x="120" y="71" width="22" height="71" rx="6" fill="white" opacity="0.5"/>
-  <circle cx="142" cy="150" r="22" fill="white" stroke="#2563eb" stroke-width="5"/>
-  <path d="M135 150l5.5 5.5 11-11" stroke="#2563eb" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <rect width="200" height="200" fill="#2563eb"/>
+  <text x="100" y="120" font-family="Arial, sans-serif" font-size="80" font-weight="bold" text-anchor="middle" fill="white">FC</text>
 </svg>

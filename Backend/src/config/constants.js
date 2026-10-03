@@ -48,5 +48,15 @@ export const FEATURE_MODES = {
   SMART: 'Smart_Chat',
   DOCUMENT: 'Document_Analysis',
   ANALYTICAL: 'Analytical_Insights',
-  GENERAL: 'General_Conversation'
+  GENERAL: 'General_Conversation',
+  EXECUTIVE_SUMMARY: 'executive_summary',
+  FINANCIAL_RATIOS: 'financial_ratios',
+  SWOT_ANALYSIS: 'swot_analysis',
+  RISK_ANALYSIS: 'risk_analysis',
+  COMPANY_COMPARISON: 'company_comparison',
+  MULTI_DOCUMENT_COMPARISON: 'multi_document_comparison',
+  KPI_EXTRACTION: 'kpi_extraction',
+  EXPLAIN_MODE: 'explain_mode',
+  TREND_ANALYSIS: 'trend_analysis',
+  REPORT_GENERATOR: 'report_generator'
 };

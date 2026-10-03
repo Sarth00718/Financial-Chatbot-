@@ -7,10 +7,13 @@ import DataVisualization from './DataVisualization.jsx';
 import {
   ContentCopy, Edit, Delete, Refresh, ThumbUp, ThumbDown,
   Bookmark, Share, Check, MoreHoriz, SmartToy, Person,
-  Description, TrendingUp, Forum,
+  Description, TrendingUp, Forum, VolumeUp, Stop,
 } from '@mui/icons-material';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { messageAPI } from '../utils/api';
@@ -93,6 +96,7 @@ const Message = ({ message, featureMode, onMessageUpdate, onMessageDelete, onReg
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState('');
   const [copied, setCopied] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const config = roleConfig[message.role] || roleConfig.system;
   const isUser = message.role === 'user';
   const isAssistant = message.role === 'assistant';
@@ -183,8 +187,9 @@ const Message = ({ message, featureMode, onMessageUpdate, onMessageDelete, onReg
   const handleDelete = async () => {
     setMenuAnchor(null);
     try {
-      await messageAPI.delete(message._id);
-      onMessageDelete(message._id);
+      const res = await messageAPI.delete(message._id);
+      const deletedIds = res.data?.data?.deletedIds || [message._id];
+      onMessageDelete(deletedIds);
       toast.success('Message deleted');
     } catch (err) {
       toast.error('Failed to delete message');
@@ -199,6 +204,39 @@ const Message = ({ message, featureMode, onMessageUpdate, onMessageDelete, onReg
     } catch (err) {
       toast.error('Failed to regenerate');
     }
+  };
+
+  const handleShare = () => {
+    if (navigator.share) {
+      navigator.share({
+        title: 'FinChatBot Analysis',
+        text: cleanedContent,
+      }).catch(console.error);
+    } else {
+      handleCopy();
+      toast('Copied to clipboard to share', { icon: '🔗' });
+    }
+  };
+
+  const handleReadAloud = () => {
+    if (isSpeaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      return;
+    }
+    
+    window.speechSynthesis.cancel();
+    
+    const speakableText = cleanedContent.replace(/[*#_`]/g, '');
+    const utterance = new SpeechSynthesisUtterance(speakableText);
+    
+    window.__currentUtterance = utterance;
+    
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+    
+    window.speechSynthesis.speak(utterance);
+    setIsSpeaking(true);
   };
 
   if (isSystem) {
@@ -232,28 +270,34 @@ const Message = ({ message, featureMode, onMessageUpdate, onMessageDelete, onReg
       <Box
         sx={{
           display: 'flex',
-          gap: 1.5,
-          mb: 2.5,
+          gap: 2,
+          mb: 3,
           flexDirection: isUser ? 'row-reverse' : 'row',
           alignItems: 'flex-start',
-          px: { xs: 0.5, sm: 1 },
+          px: { xs: 1, sm: 2 },
+          maxWidth: '850px',
+          mx: 'auto',
+          width: '100%',
         }}
       >
         {/* Avatar */}
-        <Tooltip title={isUser ? 'You' : 'FinChatBot AI'}>
-          <Avatar
-            sx={{
-              width: 32, height: 32, flexShrink: 0,
-              bgcolor: isUser ? 'primary.main' : alpha('#7C3AED', 0.9),
-              boxShadow: `0 2px 8px ${alpha(config.color, 0.25)}`,
-            }}
-          >
-            {Icon ? <Icon sx={{ fontSize: 16 }} /> : <SmartToy sx={{ fontSize: 16 }} />}
-          </Avatar>
-        </Tooltip>
+        {!isUser && (
+          <Tooltip title="FinChatBot AI">
+            <Avatar
+              variant="rounded"
+              sx={{
+                width: 32, height: 32, flexShrink: 0,
+                bgcolor: '#10a37f', // ChatGPT green
+                borderRadius: '8px',
+              }}
+            >
+              <SmartToy sx={{ fontSize: 20, color: '#fff' }} />
+            </Avatar>
+          </Tooltip>
+        )}
 
         {/* Bubble */}
-        <Box sx={{ maxWidth: '75%', minWidth: 0 }}>
+        <Box sx={{ maxWidth: isUser ? '75%' : '100%', minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-end' : 'flex-start' }}>
           {/* Label */}
           <Box
             sx={{
@@ -261,9 +305,11 @@ const Message = ({ message, featureMode, onMessageUpdate, onMessageDelete, onReg
               mb: 0.5, justifyContent: isUser ? 'flex-end' : 'flex-start',
             }}
           >
-            <Typography variant="caption" fontWeight={700} sx={{ fontSize: '0.7rem', color: config.color }}>
-              {isUser ? 'You' : 'FinChatBot'}
-            </Typography>
+            {isUser ? null : (
+              <Typography variant="caption" fontWeight={600} sx={{ fontSize: '0.875rem', color: 'text.primary', mb: 0.5 }}>
+                FinChatBot
+              </Typography>
+            )}
             {isAssistant && (
               <Chip
                 icon={<FeatureIcon sx={{ fontSize: 11 }} />}
@@ -281,23 +327,17 @@ const Message = ({ message, featureMode, onMessageUpdate, onMessageDelete, onReg
 
           {/* Content */}
           <Paper
-            variant="outlined"
+            elevation={0}
             sx={{
-              p: 1.75,
-              borderRadius: isUser ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-              bgcolor: isUser
-                ? alpha('#2563EB', 0.08)
-                : alpha('#7C3AED', 0.04),
-              borderColor: isUser
-                ? alpha('#2563EB', 0.15)
-                : alpha('#7C3AED', 0.1),
+              p: isUser ? 1.5 : 0,
+              px: isUser ? 2.5 : 0,
+              borderRadius: isUser ? '24px' : 0,
+              bgcolor: isUser ? (theme) => theme.palette.mode === 'dark' ? '#2f2f2f' : '#f4f4f4' : 'transparent',
+              color: isUser ? 'text.primary' : 'inherit',
               position: 'relative',
               wordBreak: 'break-word',
               overflowWrap: 'anywhere',
-              transition: 'box-shadow 0.15s ease',
-              '&:hover': {
-                boxShadow: `0 2px 12px ${alpha(config.color, 0.06)}`,
-              },
+              width: isAssistant ? '100%' : 'auto',
             }}
           >
             {isEditing ? (
@@ -329,11 +369,17 @@ const Message = ({ message, featureMode, onMessageUpdate, onMessageDelete, onReg
               <>
                 <Box className="prose-chat">
                   <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
+                    remarkPlugins={[remarkGfm, remarkMath]}
+                    rehypePlugins={[rehypeKatex]}
                     components={{
                       code: CodeBlock,
                       a: ({ href, children }) => (
                         <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
+                      ),
+                      table: ({ node, ...props }) => (
+                        <div style={{ overflowX: 'auto', marginBottom: '0.75em' }}>
+                          <table {...props} />
+                        </div>
                       ),
                     }}
                   >
@@ -373,50 +419,34 @@ const Message = ({ message, featureMode, onMessageUpdate, onMessageDelete, onReg
                   </IconButton>
                 </Tooltip>
               )}
+              <Tooltip title="Share">
+                <IconButton size="small" onClick={handleShare} sx={{ width: 26, height: 26 }}>
+                  <Share sx={{ fontSize: 13 }} />
+                </IconButton>
+              </Tooltip>
               {isAssistant && (
-                <Tooltip title="Regenerate">
-                  <IconButton size="small" onClick={handleRegenerate} sx={{ width: 26, height: 26 }}>
-                    <Refresh sx={{ fontSize: 13 }} />
+                <>
+                  <Tooltip title="Regenerate">
+                    <IconButton size="small" onClick={handleRegenerate} sx={{ width: 26, height: 26 }}>
+                      <Refresh sx={{ fontSize: 13 }} />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title={isSpeaking ? 'Stop Reading' : 'Read Aloud'}>
+                    <IconButton size="small" onClick={handleReadAloud} sx={{ width: 26, height: 26 }}>
+                      {isSpeaking ? <Stop sx={{ fontSize: 13 }} /> : <VolumeUp sx={{ fontSize: 13 }} />}
+                    </IconButton>
+                  </Tooltip>
+                </>
+              )}
+              {isUser && (
+                <Tooltip title="Delete">
+                  <IconButton size="small" onClick={handleDelete} sx={{ width: 26, height: 26, color: 'error.main' }}>
+                    <Delete sx={{ fontSize: 13 }} />
                   </IconButton>
                 </Tooltip>
               )}
-              <Tooltip title="More">
-                <IconButton size="small" onClick={(e) => setMenuAnchor(e.currentTarget)} sx={{ width: 26, height: 26 }}>
-                  <MoreHoriz sx={{ fontSize: 13 }} />
-                </IconButton>
-              </Tooltip>
             </Box>
           )}
-
-          <Menu
-            anchorEl={menuAnchor}
-            open={Boolean(menuAnchor)}
-            onClose={() => setMenuAnchor(null)}
-            transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-            anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-            slotProps={{ paper: { sx: { minWidth: 160, mt: 0.25 } } }}
-          >
-            <MenuItem onClick={handleCopy} dense>
-              <ListItemIcon><ContentCopy sx={{ fontSize: 16 }} /></ListItemIcon>
-              <ListItemText>Copy</ListItemText>
-            </MenuItem>
-            {isUser && (
-              <MenuItem onClick={handleEdit} dense>
-                <ListItemIcon><Edit sx={{ fontSize: 16 }} /></ListItemIcon>
-                <ListItemText>Edit</ListItemText>
-              </MenuItem>
-            )}
-            {isAssistant && (
-              <MenuItem onClick={handleRegenerate} dense>
-                <ListItemIcon><Refresh sx={{ fontSize: 16 }} /></ListItemIcon>
-                <ListItemText>Regenerate</ListItemText>
-              </MenuItem>
-            )}
-            <MenuItem onClick={handleDelete} dense sx={{ color: 'error.main' }}>
-              <ListItemIcon><Delete sx={{ fontSize: 16, color: 'error.main' }} /></ListItemIcon>
-              <ListItemText>Delete</ListItemText>
-            </MenuItem>
-          </Menu>
         </Box>
       </Box>
     </motion.div>

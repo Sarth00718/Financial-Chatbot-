@@ -81,15 +81,17 @@ class RAGCore:
             page = meta.get("page", "N/A")
             dtype = meta.get("type", "text")
             src = meta.get("source", "")
+            filename = meta.get("filename", "")
+            doc_identifier = f"Document: {filename}" if filename else "Document"
 
             if dtype == "image":
-                header = f"[Page {page} — Chart/Image Description]"
+                header = f"[{doc_identifier} | Page {page} — Chart/Image Description]"
             elif dtype == "scanned_page":
-                header = f"[Page {page} — Scanned Page (Vision-extracted)]"
+                header = f"[{doc_identifier} | Page {page} — Scanned Page (Vision-extracted)]"
             elif "table" in src.lower() or "[TABLE" in content:
-                header = f"[Page {page} — Table Extraction]"
+                header = f"[{doc_identifier} | Page {page} — Table Extraction]"
             else:
-                header = f"[Page {page}]"
+                header = f"[{doc_identifier} | Page {page}]"
 
             parts.append(f"{header}\n{content}")
 
@@ -116,6 +118,8 @@ class RAGCore:
             content = doc.page_content or ""
             snippet = content[:300] + "..." if len(content) > 300 else content
 
+            filename = meta.get("filename", "")
+
             citations.append(
                 {
                     "page": page,
@@ -123,6 +127,7 @@ class RAGCore:
                     "type": dtype,
                     "snippet": snippet,
                     "namespace": namespace,
+                    "filename": filename,
                 }
             )
 
@@ -288,6 +293,28 @@ class RAGCore:
 
         return results
 
+    def _get_document_context(self, question: str, namespaces: List[str]) -> tuple[List[Document], str, dict]:
+        """
+        Standardizes document retrieval and formatting.
+        Returns: (relevant_docs, context_string, error_dict_if_any)
+        """
+        if not namespaces:
+            return [], "", {
+                "answer": "Please upload a document to analyze.",
+                "citations": []
+            }
+        
+        relevant_docs = self._retrieve_context(question, namespaces)
+        
+        if not relevant_docs:
+            return [], "", {
+                "answer": "I searched the uploaded document but couldn't find information about that topic.",
+                "citations": []
+            }
+            
+        context = self._format_documents(relevant_docs)
+        return relevant_docs, context, None
+
     def _extract_answer_from_raw(self, raw_text: str) -> str:
         if not raw_text or not isinstance(raw_text, str):
             return ""
@@ -334,8 +361,8 @@ class RAGCore:
             "",
             text,
         )
-        text = re.sub(r"[\s,]*[\}\]]+\s*$", "", text)
-        text = re.sub(r"\n[\s,]*[\}\]]+", "", text)
+        text = re.sub(r"[\s,]*[\}]+\s*$", "", text)
+        text = re.sub(r"\n[\s,]*[\}]+", "", text)
         return text.strip()
 
     def _filter_real_visualizations(self, vizs) -> list:
@@ -376,7 +403,7 @@ class RAGCore:
             real.append(v)
         return real
 
-    def _run_rag_chain(
+    async def _run_rag_chain(
         self,
         prompt_template: str,
         variables: Dict,
@@ -391,39 +418,39 @@ CRITICAL INSTRUCTION: You MUST format your entire response as a single valid JSO
 ABSOLUTELY FORBIDDEN: The "answer" field MUST contain ONLY plain markdown text and natural language. Never include raw JSON syntax inside the answer field. Put all chart/visualization data exclusively in the separate "visualizations" array. Use markdown tables for tabular data.
 
 The JSON object must have exactly this structure:
-{
+{{
   "answer": "Your detailed answer in markdown format.",
-  "documents": {
+  "documents": {{
     "referenced_documents": [],
     "pages_used": [],
     "matching_text": [],
     "confidence_score": "High/Medium/Low"
-  },
-  "insights": {
+  }},
+  "insights": {{
     "executive_summary": "Short summary",
     "key_findings": []
-  },
-  "general": {
+  }},
+  "general": {{
     "entities": [],
     "dates": [],
     "companies": [],
     "currency": [],
     "keywords": []
-  },
+  }},
   "visualizations": [
-    {
+    {{
       "title": "Chart Title",
       "type": "line|bar|pie|area|radar|composed",
       "xAxis": ["label1", "label2"],
       "series": [
-        {
+        {{
           "name": "Series Name",
           "data": [10, 20]
-        }
+        }}
       ]
-    }
+    }}
   ]
-}
+}}
 
 If you do not have data for a specific field, leave it empty or null. But always return this exact JSON structure. Do NOT include markdown code blocks around your response, just the raw JSON text. Do NOT generate Python scripts, Plotly, or Matplotlib code. Only generate this JSON format.
 
@@ -444,14 +471,14 @@ CRITICAL: You are a document-grounded AI. Your ONLY knowledge source is the docu
         if self.gemini_llm:
             try:
                 chain = prompt | self.gemini_llm | StrOutputParser()
-                raw_answer = chain.invoke(variables)
+                raw_answer = await chain.ainvoke(variables)
                 print("[LLM] Answer generated via Gemini")
             except Exception as e:
                 print(f"[LLM WARNING] Gemini failed ({e}). Falling back to Groq...")
 
         if raw_answer is None:
             chain = prompt | self.groq_llm | StrOutputParser()
-            raw_answer = chain.invoke(variables)
+            raw_answer = await chain.ainvoke(variables)
             print("[LLM] Answer generated via Groq (Fallback)")
 
         citations = self._build_citations(relevant_docs)
@@ -459,25 +486,39 @@ CRITICAL: You are a document-grounded AI. Your ONLY knowledge source is the docu
         print("[OK] Answer generated")
 
         def _normalize_insights(raw):
+            """Normalize insights to always return a list for enterprise responses."""
             if isinstance(raw, list):
                 return raw
             if isinstance(raw, dict):
+                # Convert dict format to list format
                 items = []
-                if raw.get("key_findings"):
-                    for f in (
-                        raw["key_findings"]
-                        if isinstance(raw["key_findings"], list)
-                        else [raw["key_findings"]]
-                    ):
-                        items.append({"title": "Key Finding", "description": str(f)})
                 if raw.get("executive_summary"):
-                    items.insert(
-                        0,
-                        {
-                            "title": "Executive Summary",
-                            "description": str(raw["executive_summary"]),
-                        },
-                    )
+                    items.append({
+                        "title": "Executive Summary",
+                        "description": str(raw["executive_summary"]),
+                        "category": "Summary"
+                    })
+                if raw.get("key_findings"):
+                    for finding in (raw["key_findings"] if isinstance(raw["key_findings"], list) else [raw["key_findings"]]):
+                        items.append({
+                            "title": "Key Finding",
+                            "description": str(finding),
+                            "category": "Finding"
+                        })
+                if raw.get("trends"):
+                    for trend in (raw["trends"] if isinstance(raw["trends"], list) else [raw["trends"]]):
+                        items.append({
+                            "title": "Trend",
+                            "description": str(trend),
+                            "category": "Trend"
+                        })
+                if raw.get("swot"):
+                    for swot_item in (raw["swot"] if isinstance(raw["swot"], list) else [raw["swot"]]):
+                        items.append({
+                            "title": "SWOT Analysis",
+                            "description": str(swot_item),
+                            "category": "SWOT"
+                        })
                 return items
             return []
 
