@@ -29,16 +29,28 @@ const MarkdownBlock = ({ children }) => (
     '& ul,& ol': { pl: 3, my: 0.5 },
     '& li': { fontSize: '0.875rem', mb: 0.25 },
     '& strong': { fontWeight: 700 },
-    '& table': { borderCollapse: 'collapse', width: '100%', my: 1.5, display: 'block', overflowX: 'auto' },
-    '& th': { border: '1px solid', borderColor: 'divider', px: 1.5, py: 0.75, fontSize: '0.8125rem', fontWeight: 700, bgcolor: 'action.hover', textAlign: 'left', whiteSpace: 'nowrap' },
-    '& td': { border: '1px solid', borderColor: 'divider', px: 1.5, py: 0.5, fontSize: '0.8125rem' },
+    '& table': { borderCollapse: 'collapse', width: 'max-content', minWidth: '100%', my: 1.5 },
+    '& .table-wrapper': { overflowX: 'auto', width: '100%', display: 'block' },
+    '& th': { border: '1px solid', borderColor: 'divider', px: 1.5, py: 0.75, fontSize: '0.8125rem', fontWeight: 700, bgcolor: 'action.hover', textAlign: 'left', whiteSpace: 'nowrap', wordBreak: 'normal', overflowWrap: 'normal' },
+    '& td': { border: '1px solid', borderColor: 'divider', px: 1.5, py: 0.5, fontSize: '0.8125rem', wordBreak: 'normal', overflowWrap: 'break-word' },
     '& tr:nth-of-type(even)': { bgcolor: 'action.hover' },
     '& code': { bgcolor: 'action.selected', px: 0.5, borderRadius: 0.5, fontSize: '0.8rem', fontFamily: 'monospace' },
     '& pre': { bgcolor: 'action.selected', p: 1.5, borderRadius: 1.5, overflowX: 'auto', my: 1 },
     '& blockquote': { borderLeft: '3px solid', borderColor: 'primary.main', pl: 2, ml: 0, color: 'text.secondary', my: 1 },
     '& hr': { my: 1.5, borderColor: 'divider' },
   }}>
-    <ReactMarkdown remarkPlugins={[remarkGfm]}>{children || ''}</ReactMarkdown>
+    <ReactMarkdown 
+      remarkPlugins={[remarkGfm]}
+      components={{
+        table: ({ node, ...props }) => (
+          <div className="table-wrapper" style={{ overflowX: 'auto', marginBottom: '1.5em' }}>
+            <table {...props} />
+          </div>
+        )
+      }}
+    >
+      {children || ''}
+    </ReactMarkdown>
   </Box>
 );
 
