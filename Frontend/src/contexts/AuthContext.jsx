@@ -115,29 +115,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const forgotPassword = async (data) => {
-    try {
-      await authAPI.forgotPassword(data);
-      toast.success('Password reset email sent');
-      return { success: true };
-    } catch (error) {
-      const message = error.response?.data?.message || 'Request failed';
-      toast.error(message);
-      return { success: false, error: message };
-    }
-  };
-
-  const resetPassword = async (data) => {
-    try {
-      await authAPI.resetPassword(data);
-      toast.success('Password reset successful');
-      return { success: true };
-    } catch (error) {
-      const message = error.response?.data?.message || 'Reset failed';
-      toast.error(message);
-      return { success: false, error: message };
-    }
-  };
 
   const value = {
     user,
@@ -149,8 +126,6 @@ export const AuthProvider = ({ children }) => {
     logout,
     updateProfile,
     changePassword,
-    forgotPassword,
-    resetPassword,
     checkAuth,
   };
 

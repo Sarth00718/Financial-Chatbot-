@@ -42,42 +42,47 @@ const AppLayout = ({ children, sidebarContent: customSidebar, showTopbar = true 
   const sidebarContent = (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       {/* Brand */}
-      <Box sx={{ height: 60, display: 'flex', alignItems: 'center', px: 1.5, gap: 1.25, flexShrink: 0 }}>
-        <Box
-          sx={{
-            width: 34, height: 34, borderRadius: 1.5, flexShrink: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)',
-            boxShadow: '0 2px 8px rgba(37,99,235,0.3)',
-          }}
-        >
-          <Insights sx={{ color: '#fff', fontSize: 16 }} />
-        </Box>
-        <AnimatePresence initial={false}>
-          {open && (
-            <motion.div
-              key="brand"
-              initial={{ opacity: 0, width: 0 }}
-              animate={{ opacity: 1, width: 'auto' }}
-              exit={{ opacity: 0, width: 0 }}
-              transition={{ duration: 0.15 }}
-              style={{ overflow: 'hidden', whiteSpace: 'nowrap', flex: 1 }}
+      <Box sx={{ height: 60, display: 'flex', alignItems: 'center', px: open ? 1.5 : 0, justifyContent: open ? 'flex-start' : 'center', gap: 1.25, flexShrink: 0 }}>
+        {open && (
+          <>
+            <Box
+              sx={{
+                width: 34, height: 34, borderRadius: 1.5, flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)',
+                boxShadow: '0 2px 8px rgba(37,99,235,0.3)',
+              }}
             >
-              <Typography variant="subtitle2" fontWeight={800} lineHeight={1.15} noWrap sx={{ letterSpacing: '-0.02em' }}>
-                FinChatBot
-              </Typography>
-              <Typography variant="caption" color="text.secondary" lineHeight={1} noWrap sx={{ fontSize: '0.65rem', letterSpacing: '0.04em' }}>
-                FINANCIAL INTELLIGENCE
-              </Typography>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              <Insights sx={{ color: '#fff', fontSize: 16 }} />
+            </Box>
+            <AnimatePresence initial={false}>
+              <motion.div
+                key="brand"
+                initial={{ opacity: 0, width: 0 }}
+                animate={{ opacity: 1, width: 'auto' }}
+                exit={{ opacity: 0, width: 0 }}
+                transition={{ duration: 0.15 }}
+                style={{ overflow: 'hidden', whiteSpace: 'nowrap', flex: 1 }}
+              >
+                <Typography variant="subtitle2" fontWeight={800} lineHeight={1.15} noWrap sx={{ letterSpacing: '-0.02em' }}>
+                  FinChatBot
+                </Typography>
+                <Typography variant="caption" color="text.secondary" lineHeight={1} noWrap sx={{ fontSize: '0.65rem', letterSpacing: '0.04em' }}>
+                  FINANCIAL INTELLIGENCE
+                </Typography>
+              </motion.div>
+            </AnimatePresence>
+          </>
+        )}
+
         {!isMobile && (
-          <IconButton size="small" onClick={() => setOpen((o) => !o)} sx={{ ml: 'auto', flexShrink: 0, opacity: 0.6 }}>
-            <motion.div animate={{ rotate: open ? 0 : 180 }} transition={{ duration: 0.2 }}>
-              <ChevronLeft fontSize="small" />
-            </motion.div>
-          </IconButton>
+          <Tooltip title={open ? 'Collapse sidebar' : 'Expand sidebar'} placement="right" arrow>
+            <IconButton size="small" onClick={() => setOpen((o) => !o)} sx={{ ml: open ? 'auto' : 0, flexShrink: 0, opacity: 0.8, bgcolor: !open ? 'action.hover' : 'transparent' }}>
+              <motion.div animate={{ rotate: open ? 0 : 180 }} transition={{ duration: 0.2 }}>
+                <ChevronLeft fontSize="small" />
+              </motion.div>
+            </IconButton>
+          </Tooltip>
         )}
       </Box>
 
@@ -85,7 +90,11 @@ const AppLayout = ({ children, sidebarContent: customSidebar, showTopbar = true 
 
       {/* Navigation */}
       <List sx={{ flex: 1, px: 1, py: 1, overflowY: 'auto', overflowX: 'hidden' }}>
-        {navItems.map((item) => {
+        {navItems.filter((item) => {
+          if (item.path === '/executive') return user?.role === 'analyst';
+          if (item.path === '/dashboard') return user?.role === 'user';
+          return true;
+        }).map((item) => {
           const active = location.pathname === item.path;
           const Icon = item.icon;
           return (
@@ -94,9 +103,14 @@ const AppLayout = ({ children, sidebarContent: customSidebar, showTopbar = true 
                 selected={active}
                 onClick={() => handleNav(item.path)}
                 sx={{
-                  mb: 0.25, borderRadius: 1.5, minHeight: 40, px: 1.25,
-                  justifyContent: open ? 'flex-start' : 'center',
-                  '& .MuiListItemIcon-root': { minWidth: 0, mr: open ? 1.5 : 0 },
+                  mb: 0.5, borderRadius: 1.5, minHeight: 44, px: open ? 1.5 : 0,
+                  width: open ? '100%' : 44, mx: open ? 0 : 'auto',
+                  justifyContent: open ? 'flex-start' : 'center', alignItems: 'center',
+                  '& .MuiListItemIcon-root': {
+                    minWidth: open ? 36 : '100%',
+                    mr: open ? 1.5 : 0,
+                    justifyContent: 'center',
+                  },
                   ...(active && {
                     bgcolor: alpha(theme.palette.primary.main, 0.1),
                     '& .MuiListItemIcon-root': { color: 'primary.main' },
@@ -137,9 +151,14 @@ const AppLayout = ({ children, sidebarContent: customSidebar, showTopbar = true 
               selected={location.pathname === '/admin'}
               onClick={() => handleNav('/admin')}
               sx={{
-                mb: 0.25, borderRadius: 1.5, minHeight: 40, px: 1.25,
-                justifyContent: open ? 'flex-start' : 'center',
-                '& .MuiListItemIcon-root': { minWidth: 0, mr: open ? 1.5 : 0 },
+                mb: 0.5, borderRadius: 1.5, minHeight: 44, px: open ? 1.5 : 0,
+                width: open ? '100%' : 44, mx: open ? 0 : 'auto',
+                justifyContent: open ? 'flex-start' : 'center', alignItems: 'center',
+                '& .MuiListItemIcon-root': {
+                  minWidth: open ? 36 : '100%',
+                  mr: open ? 1.5 : 0,
+                  justifyContent: 'center',
+                },
                 ...(location.pathname === '/admin' && {
                   bgcolor: alpha(theme.palette.primary.main, 0.1),
                   '& .MuiListItemIcon-root': { color: 'primary.main' },
@@ -196,7 +215,8 @@ const AppLayout = ({ children, sidebarContent: customSidebar, showTopbar = true 
         </Box>
         <Box
           sx={{
-            display: 'flex', alignItems: 'center', gap: 1, px: 0.75, py: 0.75,
+            display: 'flex', alignItems: 'center', gap: open ? 1 : 0.75, px: open ? 0.75 : 0, py: open ? 0.75 : 0.5,
+            flexDirection: open ? 'row' : 'column', justifyContent: 'center', width: '100%',
             borderRadius: 1.5, transition: 'background 0.15s',
             '&:hover': { bgcolor: 'action.hover' }, cursor: 'default', overflow: 'hidden',
           }}
@@ -237,7 +257,7 @@ const AppLayout = ({ children, sidebarContent: customSidebar, showTopbar = true 
   const drawerWidth = open ? DRAWER_WIDTH : DRAWER_COLLAPSED_WIDTH;
 
   return (
-    <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden', bgcolor: 'background.default' }}>
+    <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden', bgcolor: 'transparent' }}>
       {/* ── Sidebar ── */}
       {isMobile ? (
         <Drawer
@@ -261,8 +281,10 @@ const AppLayout = ({ children, sidebarContent: customSidebar, showTopbar = true 
               duration: theme.transitions.duration.shorter,
             }),
             borderRight: '1px solid', borderColor: 'divider',
-            bgcolor: 'background.paper', overflow: 'hidden', height: '100vh',
+            bgcolor: 'var(--color-bg-elevated)', backdropFilter: 'blur(20px)',
+            overflow: 'hidden', height: '100vh',
             position: 'sticky', top: 0, zIndex: 100,
+            boxShadow: '1px 0 24px rgba(0,0,0,0.1)',
           }}
         >
           {customSidebar || sidebarContent}
@@ -277,7 +299,8 @@ const AppLayout = ({ children, sidebarContent: customSidebar, showTopbar = true 
             sx={{
               height: 56, display: 'flex', alignItems: 'center', px: 2, gap: 1.5,
               flexShrink: 0, borderBottom: '1px solid', borderColor: 'divider',
-              bgcolor: 'background.paper', backdropFilter: 'blur(12px)',
+              bgcolor: 'var(--color-bg-elevated)', backdropFilter: 'blur(20px)',
+              boxShadow: '0 1px 24px rgba(0,0,0,0.1)', zIndex: 50,
             }}
           >
             {isMobile && (

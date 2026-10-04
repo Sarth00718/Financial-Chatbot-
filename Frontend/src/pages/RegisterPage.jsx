@@ -92,10 +92,7 @@ const RegisterPage = () => {
         <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
       </div>
 
-      {/* Theme Toggle */}
-      <div className="absolute top-4 right-4 z-20">
-        <ThemeToggle />
-      </div>
+
 
       {/* Main Container */}
       <div className="relative z-10 w-full max-w-6xl mx-auto grid lg:grid-cols-2 gap-8 items-center">
@@ -187,8 +184,12 @@ const RegisterPage = () => {
           </div>
 
           {/* Register Card */}
-          <div className="card p-8 shadow-2xl">
-            <div className="mb-8">
+          <div className="card p-8 shadow-2xl relative">
+            <div className="absolute top-6 right-6">
+              <ThemeToggle />
+            </div>
+
+            <div className="mb-8 pr-12">
               <h2 className="text-2xl font-bold mb-2" style={{ color: 'var(--color-text-primary)' }}>
                 Create your account
               </h2>

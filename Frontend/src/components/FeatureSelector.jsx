@@ -46,16 +46,18 @@ const FeatureSelector = ({ selectedFeature, onFeatureChange, disabled }) => {
           {open && (
             <Paper
               component={motion.div}
-              initial={{ opacity: 0, y: -4, scale: 0.95 }}
+              initial={{ opacity: 0, y: 8, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -4, scale: 0.95 }}
-              transition={{ duration: 0.15 }}
+              exit={{ opacity: 0, y: 8, scale: 0.95 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
               elevation={8}
               sx={{
-                position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)',
-                mt: 0.5, p: 0.5, borderRadius: 2, minWidth: 200, zIndex: 1000,
+                position: 'absolute', bottom: '100%', left: 0,
+                mb: 1.5, p: 1, borderRadius: 3, minWidth: 220, zIndex: 1000,
+                bgcolor: '#141720', // Solid background to prevent text bleed-through
                 border: '1px solid', borderColor: 'divider',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+                boxShadow: '0 12px 48px rgba(0,0,0,0.6), 0 4px 12px rgba(0,0,0,0.4)', // Stronger shadow for separation
+                transformOrigin: 'bottom left'
               }}
             >
               {features.map((f) => {

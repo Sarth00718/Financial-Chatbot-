@@ -48,7 +48,7 @@ export const getAllUsers = asyncHandler(async (req, res) => {
 
   // Get users
   const users = await User.find(filter)
-    .select("-password -refreshToken -resetPasswordToken -emailVerificationToken")
+    .select("-password -refreshToken -emailVerificationToken")
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(parseInt(limit));
@@ -86,7 +86,7 @@ export const getUserDetails = asyncHandler(async (req, res) => {
 
   // Get user
   const user = await User.findById(userId).select(
-    "-password -refreshToken -resetPasswordToken -emailVerificationToken"
+    "-password -refreshToken -emailVerificationToken"
   );
 
   if (!user) {

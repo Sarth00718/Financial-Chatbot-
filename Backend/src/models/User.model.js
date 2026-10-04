@@ -62,16 +62,6 @@ const userSchema = new mongoose.Schema(
       select: false,
     },
 
-    // Password Reset
-    resetPasswordToken: {
-      type: String,
-      select: false,
-    },
-    resetPasswordExpire: {
-      type: Date,
-      select: false,
-    },
-
     // Email Verification
     emailVerificationToken: {
       type: String,
@@ -118,12 +108,6 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
 };
 
 // Generate password reset token
-userSchema.methods.generateResetToken = function () {
-  const resetToken = new mongoose.Types.ObjectId().toString();
-  this.resetPasswordToken = resetToken;
-  this.resetPasswordExpire = Date.now() + 3600000; // 1 hour
-  return resetToken;
-};
 
 // Generate email verification token
 userSchema.methods.generateVerificationToken = function () {

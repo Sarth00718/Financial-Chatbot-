@@ -55,7 +55,7 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (refreshError) {
         // Refresh failed - only redirect if not on public pages
-        const publicPaths = ['/login', '/register', '/forgot-password', '/reset-password'];
+        const publicPaths = ['/login', '/register'];
         const currentPath = window.location.pathname;
         
         if (!publicPaths.includes(currentPath)) {
@@ -91,12 +91,6 @@ export const authAPI = {
 
   // Change password
   changePassword: (data) => api.post('/auth/change-password', data),
-
-  // Forgot password
-  forgotPassword: (data) => api.post('/auth/forgot-password', data),
-
-  // Reset password
-  resetPassword: (data) => api.post('/auth/reset-password', data),
 
   // Refresh access token
   refreshToken: () => api.post('/auth/refresh'),

@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Box, Typography, Paper, Grid, Chip, Button, IconButton, Tooltip,
   TextField, InputAdornment, Stack, alpha, Avatar,
-  Dialog, DialogTitle, DialogContent, DialogActions, MenuItem
+  Dialog, DialogTitle, DialogContent, DialogActions, MenuItem,
+  ToggleButton, ToggleButtonGroup
 } from '@mui/material';
 import {
   PeopleOutline, Assessment, Memory, Shield, Search, MoreVert,
@@ -22,7 +23,8 @@ const StatCard = ({ icon: Icon, label, value, color, subtitle, delay }) => (
         p: 3, 
         borderRadius: 4, 
         height: '100%', 
-        bgcolor: 'background.paper',
+        bgcolor: 'var(--color-bg-elevated)',
+        backdropFilter: 'blur(16px)',
         border: '1px solid',
         borderColor: alpha(color, 0.2),
         position: 'relative',
@@ -51,15 +53,15 @@ const StatCard = ({ icon: Icon, label, value, color, subtitle, delay }) => (
         <Box sx={{ width: 48, height: 48, borderRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: alpha(color, 0.1), color: color }}>
           <Icon sx={{ fontSize: 24 }} />
         </Box>
-        <Box>
-          <Typography variant="h3" fontWeight={800} sx={{ mb: 0.5, letterSpacing: '-0.03em', color: 'text.primary' }}>
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <Typography variant="h3" fontWeight={800} noWrap sx={{ mb: 0.5, letterSpacing: '-0.03em', color: 'text.primary', fontSize: { xs: '1.75rem', md: '3rem' } }}>
             {value ?? '—'}
           </Typography>
-          <Typography variant="body2" color="text.secondary" fontWeight={600} sx={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.7rem' }}>
+          <Typography variant="body2" color="text.secondary" fontWeight={600} noWrap sx={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.7rem' }}>
             {label}
           </Typography>
           {subtitle && (
-            <Typography variant="caption" sx={{ color: color, fontWeight: 700, mt: 0.5, display: 'block' }}>
+            <Typography variant="caption" noWrap sx={{ color: color, fontWeight: 700, mt: 0.5, display: 'block' }}>
               {subtitle}
             </Typography>
           )}
@@ -98,7 +100,11 @@ const AdminDashboard = () => {
     }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { 
+    fetchData(); 
+    const interval = setInterval(fetchData, 60000);
+    return () => clearInterval(interval);
+  }, [fetchData]);
 
   const handleToggleStatus = async (userId, currentStatus) => {
     try {
@@ -169,25 +175,16 @@ const AdminDashboard = () => {
             Manage users, monitor system health, and configure access.
           </Typography>
         </Box>
-        <Button 
-          variant="contained" 
-          size="medium" 
-          startIcon={<Refresh />} 
-          onClick={fetchData} 
-          sx={{ borderRadius: 2, px: 3, py: 1, boxShadow: 'none', '&:hover': { boxShadow: '0 4px 12px rgba(37,99,235,0.2)' } }}
-        >
-          Refresh Data
-        </Button>
       </Box>
 
       {/* Stats */}
       <Grid container spacing={3} sx={{ mb: 5 }}>
-        {statCards.map((s) => <Grid item xs={12} sm={6} md={3} key={s.label}><StatCard {...s} /></Grid>)}
+        {statCards.map((s) => <Grid size={{ xs: 12, sm: 6, md: 3 }} key={s.label}><StatCard {...s} /></Grid>)}
       </Grid>
 
       {/* Users table */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.5 }}>
-        <Paper elevation={0} sx={{ borderRadius: 4, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
+        <Paper elevation={0} sx={{ borderRadius: 4, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)', bgcolor: 'var(--color-bg-elevated)', backdropFilter: 'blur(16px)' }}>
           <Box sx={{ px: 3, py: 2.5, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap', bgcolor: alpha('#94A3B8', 0.02) }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1 }}>
               <AdminPanelSettingsOutlined sx={{ color: 'primary.main' }} />
@@ -201,7 +198,7 @@ const AdminDashboard = () => {
               onChange={(e) => setSearchQuery(e.target.value)}
               InputProps={{
                 startAdornment: <InputAdornment position="start"><Search sx={{ fontSize: 18 }} /></InputAdornment>,
-                sx: { fontSize: '0.875rem', borderRadius: 2, width: { xs: '100%', sm: 280 }, bgcolor: 'background.paper' },
+                sx: { fontSize: '0.875rem', borderRadius: 2, width: { xs: '100%', sm: 280 }, bgcolor: 'rgba(0,0,0,0.2)' },
               }}
             />
           </Box>
@@ -218,7 +215,7 @@ const AdminDashboard = () => {
             <Box sx={{ overflowX: 'auto' }}>
               <Box component="table" sx={{ width: '100%', borderCollapse: 'collapse' }}>
                 <Box component="thead">
-                  <Box component="tr" sx={{ borderBottom: '1px solid', borderColor: 'divider', bgcolor: alpha('#94A3B8', 0.05) }}>
+                  <Box component="tr" sx={{ borderBottom: '1px solid rgba(255,255,255,0.05)', bgcolor: 'rgba(0,0,0,0.2)' }}>
                     {['User', 'Role', 'Status', 'Conversations', 'Joined', 'Actions'].map((h) => (
                       <Box key={h} component="th" sx={{ textAlign: 'left', px: 3, py: 2, fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'text.secondary' }}>
                         {h}
@@ -232,9 +229,9 @@ const AdminDashboard = () => {
                       key={user._id}
                       component="tr"
                       sx={{
-                        borderBottom: '1px solid', borderColor: 'divider',
+                        borderBottom: '1px solid rgba(255,255,255,0.03)',
                         transition: 'background 0.2s',
-                        '&:hover': { bgcolor: alpha('#2563EB', 0.02) },
+                        '&:hover': { bgcolor: 'rgba(255,255,255,0.02)' },
                       }}
                     >
                       <Box component="td" sx={{ px: 3, py: 2 }}>

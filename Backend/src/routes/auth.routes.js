@@ -6,8 +6,6 @@ import {
   getProfile,
   updateProfile,
   changePassword,
-  forgotPassword,
-  resetPassword,
   refreshAccessToken,
   googleOAuthRedirect,
   googleOAuthCallback,
@@ -17,12 +15,10 @@ import { validate } from "../middlewares/validate.middleware.js";
 import {
   registerSchema,
   loginSchema,
-  forgotPasswordSchema,
-  resetPasswordSchema,
   changePasswordSchema,
   updateProfileSchema,
 } from "../validators/auth.validator.js";
-import { authLimiter, passwordResetLimiter } from "../middlewares/rateLimiter.middleware.js";
+import { authLimiter } from "../middlewares/rateLimiter.middleware.js";
 
 const router = express.Router();
 
@@ -31,8 +27,6 @@ router.get("/google", googleOAuthRedirect);
 router.get("/google/callback", googleOAuthCallback);
 router.post("/register", authLimiter, validate(registerSchema), register);
 router.post("/login", authLimiter, validate(loginSchema), login);
-router.post("/forgot-password", passwordResetLimiter, validate(forgotPasswordSchema), forgotPassword);
-router.post("/reset-password", passwordResetLimiter, validate(resetPasswordSchema), resetPassword);
 router.post("/refresh", refreshAccessToken);
 
 // Protected routes (require authentication)

@@ -91,8 +91,14 @@ const ChatPage = () => {
   const socketRef = useRef(null);
   const messagesEndRef = useRef(null);
   const pollIntervalsRef = useRef([]);
+  const hasFetchedRef = useRef(false);
 
-  useEffect(() => { fetchConversations(); }, []);
+  useEffect(() => { 
+    if (!hasFetchedRef.current) {
+      hasFetchedRef.current = true;
+      fetchConversations(); 
+    }
+  }, []);
 
   useEffect(() => {
     if (currentConversationId) fetchMessages();
@@ -380,7 +386,7 @@ const ChatPage = () => {
         onClose={() => {}}
       />
     }>
-      <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', bgcolor: 'background.default' }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', bgcolor: 'transparent' }}>
         {/* ── Top bar ── */}
         <Box
           component="header"
@@ -388,7 +394,7 @@ const ChatPage = () => {
             height: 56, display: 'flex', alignItems: 'center',
             px: { xs: 1.5, md: 2 }, gap: 1, flexShrink: 0,
             borderBottom: '1px solid', borderColor: 'divider',
-            bgcolor: 'background.paper',
+            bgcolor: 'var(--color-bg-elevated)', backdropFilter: 'blur(20px)', zIndex: 50,
           }}
         >
           {/* Bot identity */}
@@ -422,10 +428,8 @@ const ChatPage = () => {
             />
           </Tooltip>
 
-          {/* Feature selector */}
-          <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', px: 1 }}>
-            <FeatureSelector selectedFeature={selectedFeature} onFeatureChange={handleFeatureChange} disabled={isLoading} />
-          </Box>
+          {/* Center spacer */}
+          <Box sx={{ flex: 1 }} />
 
           {/* Right actions */}
           <Stack direction="row" alignItems="center" gap={0.5} flexShrink={0}>
@@ -456,12 +460,29 @@ const ChatPage = () => {
                 <Chip size="small" label={user?.role} color="primary" variant="outlined" sx={{ mt: 0.75, height: 20, fontSize: '0.65rem', fontWeight: 600 }} />
               </Box>
               <Divider />
-              {isAdmin && <MenuItem onClick={() => { setUserMenuAnchor(null); navigate('/admin'); }}><ListItemIcon><AdminPanelSettings fontSize="small" /></ListItemIcon><ListItemText>Admin dashboard</ListItemText></MenuItem>}
-              <MenuItem onClick={() => { setUserMenuAnchor(null); navigate('/executive'); }}><ListItemIcon><Insights fontSize="small" /></ListItemIcon><ListItemText>Executive dashboard</ListItemText></MenuItem>
-
-              <MenuItem onClick={() => { setUserMenuAnchor(null); navigate('/dashboard'); }}><ListItemIcon><Dashboard fontSize="small" /></ListItemIcon><ListItemText>My dashboard</ListItemText></MenuItem>
+              {user?.role === 'admin' && (
+                <MenuItem onClick={() => { setUserMenuAnchor(null); navigate('/admin'); }}>
+                  <ListItemIcon><AdminPanelSettings fontSize="small" /></ListItemIcon>
+                  <ListItemText>Admin dashboard</ListItemText>
+                </MenuItem>
+              )}
+              {user?.role === 'analyst' && (
+                <MenuItem onClick={() => { setUserMenuAnchor(null); navigate('/executive'); }}>
+                  <ListItemIcon><Insights fontSize="small" /></ListItemIcon>
+                  <ListItemText>Analyst dashboard</ListItemText>
+                </MenuItem>
+              )}
+              {user?.role === 'user' && (
+                <MenuItem onClick={() => { setUserMenuAnchor(null); navigate('/dashboard'); }}>
+                  <ListItemIcon><Dashboard fontSize="small" /></ListItemIcon>
+                  <ListItemText>My dashboard</ListItemText>
+                </MenuItem>
+              )}
               <Divider />
-              <MenuItem onClick={handleLogout} sx={{ color: 'error.main' }}><ListItemIcon><Logout fontSize="small" color="error" /></ListItemIcon><ListItemText>Log out</ListItemText></MenuItem>
+              <MenuItem onClick={handleLogout} sx={{ color: 'error.main' }}>
+                <ListItemIcon><Logout fontSize="small" color="error" /></ListItemIcon>
+                <ListItemText>Log out</ListItemText>
+              </MenuItem>
             </Menu>
           </Stack>
         </Box>
@@ -481,13 +502,15 @@ const ChatPage = () => {
                   sx={{
                     width: 80, height: 80, mx: 'auto', mb: 3, borderRadius: 3,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: 'linear-gradient(135deg, #DBEAFE, #BFDBFE)',
-                    boxShadow: '0 4px 16px rgba(37,99,235,0.1)',
+                    background: 'linear-gradient(135deg, rgba(37,99,235,0.2) 0%, rgba(124,58,237,0.2) 100%)',
+                    boxShadow: '0 8px 32px rgba(37,99,235,0.15), inset 0 1px 0 rgba(255,255,255,0.1)',
+                    border: '1px solid rgba(37,99,235,0.3)',
+                    backdropFilter: 'blur(12px)',
                   }}
                 >
-                  <Insights sx={{ fontSize: 40, color: 'primary.main' }} />
+                  <Insights sx={{ fontSize: 40, color: '#60A5FA', filter: 'drop-shadow(0 0 8px rgba(96,165,250,0.5))' }} />
                 </Box>
-                <Typography variant="h5" fontWeight={800} sx={{ mb: 1, letterSpacing: '-0.02em' }}>
+                <Typography variant="h5" fontWeight={800} sx={{ mb: 1, letterSpacing: '-0.02em', color: 'text.primary' }}>
                   What would you like to explore?
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 1, maxWidth: 440, mx: 'auto', lineHeight: 1.6 }}>
@@ -501,10 +524,18 @@ const ChatPage = () => {
                       variant="outlined"
                       onClick={() => { setInput(text); }}
                       sx={{
-                        px: 2, py: 1, borderRadius: 2, cursor: 'pointer',
-                        fontSize: '0.8125rem', color: 'text.secondary',
-                        transition: 'all 0.15s',
-                        '&:hover': { borderColor: 'primary.main', color: 'primary.main', bgcolor: alpha('#2563EB', 0.04) },
+                        px: 2.5, py: 1.25, borderRadius: 3, cursor: 'pointer',
+                        fontSize: '0.875rem', fontWeight: 500, color: 'text.primary',
+                        bgcolor: 'background.paper', // Uses theme's glassmorphic surface
+                        border: '1px solid', borderColor: 'divider',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+                        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                        '&:hover': { 
+                          borderColor: 'primary.main', 
+                          transform: 'translateY(-2px)',
+                          boxShadow: '0 6px 16px rgba(37,99,235,0.12)',
+                          bgcolor: alpha('#2563EB', 0.04) 
+                        },
                       }}
                     >
                       {text}
@@ -569,17 +600,25 @@ const ChatPage = () => {
           </Container>
         </Box>
 
-        {/* ── Enterprise analysis panel ── */}
-        {currentConversationId && (
-          <EnterpriseInsights
-            conversationId={currentConversationId}
-            hasDocuments={currentConversation?.documents?.some((d) => d.status === 'processed') ?? false}
-          />
-        )}
+
 
         {/* ── Input bar ── */}
-        <Box component="footer" sx={{ flexShrink: 0, bgcolor: 'background.paper', px: { xs: 1.5, md: 2 }, py: 1.5 }}>
-          <Container maxWidth="md" disableGutters>
+        <Box component="footer" sx={{ flexShrink: 0, bgcolor: 'background.default', px: { xs: 1.5, md: 2 }, py: 1.5, position: 'relative', zIndex: 10 }}>
+          {/* Subtle gradient overlay at bottom of chat */}
+          <Box sx={{ position: 'absolute', top: -40, left: 0, right: 0, height: 40, background: 'linear-gradient(to top, var(--color-bg-page), transparent)', pointerEvents: 'none' }} />
+          
+          <Container maxWidth="md" disableGutters sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            
+            {/* ── Enterprise analysis panel ── */}
+            {currentConversationId && (
+              <Box sx={{ mx: 0.5 }}>
+                <EnterpriseInsights
+                  conversationId={currentConversationId}
+                  hasDocuments={currentConversation?.documents?.some((d) => d.status === 'processed') ?? false}
+                />
+              </Box>
+            )}
+
             <ChatInput
               input={input}
               setInput={setInput}
@@ -589,6 +628,8 @@ const ChatPage = () => {
               onVoiceTranscript={handleVoiceTranscript}
               placeholder={FEATURE_UI_META[selectedFeature]?.placeholder}
               modeColor={FEATURE_UI_META[selectedFeature]?.color}
+              selectedFeature={selectedFeature}
+              onFeatureChange={handleFeatureChange}
             />
           </Container>
         </Box>

@@ -9,26 +9,13 @@ import nodemailer from "nodemailer";
  * Create email transporter
  */
 const createTransporter = () => {
-  // For development, use ethereal email (fake SMTP)
-  if (process.env.NODE_ENV !== "production") {
-    return nodemailer.createTransport({
-      host: "smtp.ethereal.email",
-      port: 587,
-      auth: {
-        user: process.env.EMAIL_USER || "ethereal.user@ethereal.email",
-        pass: process.env.EMAIL_PASS || "ethereal.pass",
-      },
-    });
-  }
-
-  // For production, use real SMTP service (Gmail, SendGrid, etc.)
   return nodemailer.createTransport({
-    host: process.env.EMAIL_HOST,
+    host: process.env.EMAIL_HOST || "smtp.ethereal.email",
     port: process.env.EMAIL_PORT || 587,
     secure: process.env.EMAIL_SECURE === "true",
     auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
+      user: process.env.EMAIL_USER || "ethereal.user@ethereal.email",
+      pass: process.env.EMAIL_PASS || "ethereal.pass",
     },
   });
 };
@@ -59,6 +46,10 @@ export const sendEmail = async (options) => {
     return info;
   } catch (error) {
     console.error("Email sending failed:", error);
+    if (process.env.NODE_ENV !== "production") {
+      console.log("⚠️ (Dev Mode) Ignoring email sending error so the flow can continue.");
+      return null;
+    }
     throw new Error("Failed to send email");
   }
 };
@@ -68,6 +59,13 @@ export const sendEmail = async (options) => {
  */
 export const sendPasswordResetEmail = async (email, name, resetToken) => {
   const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`\n========================================`);
+    console.log(`🔐 PASSWORD RESET LINK (Dev Mode)`);
+    console.log(`🔗 ${resetUrl}`);
+    console.log(`========================================\n`);
+  }
 
   const html = `
     <!DOCTYPE html>

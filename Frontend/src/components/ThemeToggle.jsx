@@ -20,9 +20,14 @@ const ThemeToggle = ({ size = 'medium' }) => {
         aria-pressed={isDark}
         sx={{
           position: 'relative',
-          color: isDark ? '#FBBF24' : 'text.secondary',
-          bgcolor: 'action.hover',
-          '&:hover': { bgcolor: 'action.selected' },
+          color: isDark ? '#FBBF24' : '#4F46E5',
+          bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+          border: '1px solid',
+          borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+          backdropFilter: 'blur(10px)',
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+          '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' },
+          transition: 'all 0.2s',
         }}
       >
         <AnimatePresence mode="wait" initial={false}>

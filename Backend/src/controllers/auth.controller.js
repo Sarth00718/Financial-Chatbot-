@@ -17,7 +17,6 @@ import {
 } from "../utils/jwt.js";
 import axios from "axios";
 import {
-  sendPasswordResetEmail,
   sendWelcomeEmail,
 } from "../services/email.service.js";
 
@@ -168,7 +167,7 @@ export const logout = asyncHandler(async (req, res) => {
  */
 export const getProfile = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id)
-    .select("-password -refreshToken -resetPasswordToken -resetPasswordExpire");
+    .select("-password -refreshToken");
 
   if (!user) {
     throw new ApiError(404, "User not found");
@@ -241,79 +240,6 @@ export const changePassword = asyncHandler(async (req, res) => {
   );
 });
 
-/**
- * Forgot password - Send reset email
- * POST /api/v1/auth/forgot-password
- */
-export const forgotPassword = asyncHandler(async (req, res) => {
-  const { email } = req.body;
-
-  // Find user
-  const user = await User.findOne({ email });
-
-  if (!user) {
-    // Don't reveal if user exists
-    return res.status(200).json(
-      new ApiResponse(
-        200,
-        {},
-        "If an account exists, a password reset email has been sent"
-      )
-    );
-  }
-
-  // Generate reset token
-  const resetToken = user.generateResetToken();
-  await user.save({ validateBeforeSave: false });
-
-  // Send reset email
-  try {
-    await sendPasswordResetEmail(user.email, user.name, resetToken);
-
-    return res.status(200).json(
-      new ApiResponse(
-        200,
-        {},
-        "Password reset email sent successfully"
-      )
-    );
-  } catch (error) {
-    // Clear reset token if email fails
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpire = undefined;
-    await user.save({ validateBeforeSave: false });
-
-    throw new ApiError(500, "Failed to send password reset email");
-  }
-});
-
-/**
- * Reset password with token
- * POST /api/v1/auth/reset-password
- */
-export const resetPassword = asyncHandler(async (req, res) => {
-  const { token, password } = req.body;
-
-  // Find user with valid reset token
-  const user = await User.findOne({
-    resetPasswordToken: token,
-    resetPasswordExpire: { $gt: Date.now() },
-  }).select("+resetPasswordToken +resetPasswordExpire");
-
-  if (!user) {
-    throw new ApiError(400, "Invalid or expired reset token");
-  }
-
-  // Update password
-  user.password = password;
-  user.resetPasswordToken = undefined;
-  user.resetPasswordExpire = undefined;
-  await user.save();
-
-  return res.status(200).json(
-    new ApiResponse(200, {}, "Password reset successful")
-  );
-});
 
 /**
  * Refresh access token

@@ -49,39 +49,6 @@ export const loginSchema = z.object({
   }),
 });
 
-/**
- * Forgot Password Schema
- */
-export const forgotPasswordSchema = z.object({
-  body: z.object({
-    email: z
-      .string()
-      .email("Invalid email format")
-      .toLowerCase()
-      .trim(),
-  }),
-});
-
-/**
- * Reset Password Schema
- */
-export const resetPasswordSchema = z.object({
-  body: z.object({
-    token: z.string().min(1, "Reset token is required"),
-    password: z
-      .string()
-      .min(6, "Password must be at least 6 characters")
-      .max(100, "Password cannot exceed 100 characters")
-      .regex(
-        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
-        "Password must contain at least one uppercase letter, one lowercase letter, and one number"
-      ),
-    confirmPassword: z.string(),
-  }).refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords do not match",
-    path: ["confirmPassword"],
-  }),
-});
 
 /**
  * Change Password Schema

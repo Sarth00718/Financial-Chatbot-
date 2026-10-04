@@ -6,13 +6,14 @@ import {
   Send, AttachFile, Square,
 } from '@mui/icons-material';
 import { VoiceButton } from './VoiceInput';
+import FeatureSelector from './FeatureSelector';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const MAX_FILE_SIZE_MB = 20;
 
 const ChatInput = ({
   input, setInput, onSend, isLoading, onFileUpload, onVoiceTranscript,
-  placeholder, modeColor,
+  placeholder, modeColor, selectedFeature, onFeatureChange
 }) => {
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -82,22 +83,35 @@ const ChatInput = ({
       </AnimatePresence>
 
       <Paper
-        variant="outlined"
+        elevation={0}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         sx={{
-          display: 'flex', alignItems: 'flex-end', gap: 0.75,
-          px: 1.25, py: 0.75, borderRadius: 3,
+          display: 'flex', alignItems: 'flex-end', gap: 1,
+          px: 1.5, py: 1.25, borderRadius: 4,
+          border: '1px solid',
           borderColor: isDragOver ? 'primary.main' : 'divider',
-          transition: 'all 0.2s ease',
-          bgcolor: alpha('#2563EB', isLoading ? 0.03 : 0),
+          background: 'var(--color-bg-elevated)', // Use theme elevated color for glassmorphism
+          backdropFilter: 'blur(16px)',
+          boxShadow: '0 4px 24px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.05)',
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           '&:focus-within': {
             borderColor: modeColor || 'primary.main',
-            boxShadow: `0 0 0 2px ${alpha(modeColor || '#2563EB', 0.1)}`,
+            boxShadow: `0 8px 32px ${alpha(modeColor || '#2563EB', 0.15)}, inset 0 1px 0 rgba(255,255,255,0.05)`,
+            transform: 'translateY(-1px)',
           },
         }}
       >
+        {/* Feature Selector integrated into the input */}
+        <Box sx={{ mb: 0.25, mr: 0.5 }}>
+          <FeatureSelector 
+            selectedFeature={selectedFeature} 
+            onFeatureChange={onFeatureChange} 
+            disabled={isLoading} 
+          />
+        </Box>
+
         {/* File attach */}
         <Tooltip title="(PDF, Excel, CSV)">
           <span>
@@ -132,10 +146,10 @@ const ChatInput = ({
           rows={1}
           sx={{
             flex: 1, resize: 'none', border: 'none', outline: 'none',
-            fontSize: '0.875rem', lineHeight: 1.5, fontFamily: 'Inter, sans-serif',
+            fontSize: '0.9375rem', lineHeight: 1.5, fontFamily: 'Inter, sans-serif',
             bgcolor: 'transparent', color: 'text.primary',
-            minHeight: 24, maxHeight: 120,
-            '&::placeholder': { color: 'text.disabled' },
+            minHeight: 24, maxHeight: 160,
+            '&::placeholder': { color: 'text.secondary', opacity: 0.8 },
             '&:disabled': { opacity: 0.6 },
           }}
           onInput={(e) => {

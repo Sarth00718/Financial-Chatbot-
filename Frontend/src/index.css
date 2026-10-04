@@ -28,14 +28,23 @@ body {
 }
 
 .dark {
-  --color-bg-page: #0B0D14;
-  --color-bg-elevated: #141720;
-  --color-bg-subtle: #1A1D2B;
-  --color-text-primary: #EDF2F7;
-  --color-text-secondary: #94A3B8;
+  --color-bg-page: #09090E; /* Very deep dark tint */
+  --color-bg-elevated: rgba(20, 23, 32, 0.6); /* Translucent elevated for glass */
+  --color-bg-subtle: #12141C;
+  --color-text-primary: #F8FAFC; /* Brighter white for high contrast */
+  --color-text-secondary: #CBD5E1; /* Better contrast secondary text */
   --color-text-muted: #64748B;
-  --color-border: #1E2235;
-  --color-border-hover: #2A2E42;
+  --color-border: rgba(255,255,255,0.08); /* Subtle glass borders */
+  --color-border-hover: rgba(255,255,255,0.15);
+}
+
+body {
+  background-color: var(--color-bg-page);
+  /* Premium subtle gradient overlay for the whole app */
+  background-image: 
+    radial-gradient(circle at 15% 50%, rgba(37, 99, 235, 0.04) 0%, transparent 50%),
+    radial-gradient(circle at 85% 30%, rgba(124, 58, 237, 0.04) 0%, transparent 50%);
+  background-attachment: fixed;
 }
 
 /* ── Animations ── */

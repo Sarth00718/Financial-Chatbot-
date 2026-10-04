@@ -237,7 +237,7 @@ class RAGChatService(RAGCore):
             print(f"\n[ERROR] Error generating answer: {e}")
             traceback.print_exc()
             return {
-                "answer": "I encountered an error while processing your question. Please try again or rephrase your question.",
+                "answer": f"I encountered an error while processing your question: {str(e)}\n\nPlease try again or rephrase your question.",
                 "citations": [],
             }
 
