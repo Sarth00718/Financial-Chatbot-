@@ -369,7 +369,8 @@ export const googleOAuthRedirect = asyncHandler(async (req, res) => {
 
   const protocol = req.headers['x-forwarded-proto'] || req.protocol;
   const host = req.headers['x-forwarded-host'] || req.get('host');
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${protocol}://${host}/api/v1/auth/google/callback`;
+  const baseDomain = process.env.CLIENT_URL || process.env.FRONTEND_URL || `${protocol}://${host}`;
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${baseDomain}/api/v1/auth/google/callback`;
 
   const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   authUrl.searchParams.set("client_id", process.env.GOOGLE_CLIENT_ID);
@@ -399,7 +400,8 @@ export const googleOAuthCallback = asyncHandler(async (req, res) => {
 
   const protocol = req.headers['x-forwarded-proto'] || req.protocol;
   const host = req.headers['x-forwarded-host'] || req.get('host');
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${protocol}://${host}/api/v1/auth/google/callback`;
+  const baseDomain = process.env.CLIENT_URL || process.env.FRONTEND_URL || `${protocol}://${host}`;
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${baseDomain}/api/v1/auth/google/callback`;
 
   const tokenResponse = await axios.post(
     "https://oauth2.googleapis.com/token",
