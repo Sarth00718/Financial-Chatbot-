@@ -363,13 +363,17 @@ export const refreshAccessToken = asyncHandler(async (req, res) => {
  * GET /api/v1/auth/google
  */
 export const googleOAuthRedirect = asyncHandler(async (req, res) => {
-  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_REDIRECT_URI) {
-    throw new ApiError(500, "Google OAuth is not configured properly.");
+  if (!process.env.GOOGLE_CLIENT_ID) {
+    throw new ApiError(500, "Google OAuth is not configured properly (Missing Client ID).");
   }
+
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+  const host = req.headers['x-forwarded-host'] || req.get('host');
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${protocol}://${host}/api/v1/auth/google/callback`;
 
   const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   authUrl.searchParams.set("client_id", process.env.GOOGLE_CLIENT_ID);
-  authUrl.searchParams.set("redirect_uri", process.env.GOOGLE_REDIRECT_URI);
+  authUrl.searchParams.set("redirect_uri", redirectUri);
   authUrl.searchParams.set("response_type", "code");
   authUrl.searchParams.set("scope", "openid email profile");
   authUrl.searchParams.set("access_type", "offline");
@@ -389,9 +393,13 @@ export const googleOAuthCallback = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Google OAuth callback did not receive a code.");
   }
 
-  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET || !process.env.GOOGLE_REDIRECT_URI) {
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
     throw new ApiError(500, "Google OAuth is not configured properly.");
   }
+
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+  const host = req.headers['x-forwarded-host'] || req.get('host');
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${protocol}://${host}/api/v1/auth/google/callback`;
 
   const tokenResponse = await axios.post(
     "https://oauth2.googleapis.com/token",
@@ -399,7 +407,7 @@ export const googleOAuthCallback = asyncHandler(async (req, res) => {
       code: code.toString(),
       client_id: process.env.GOOGLE_CLIENT_ID,
       client_secret: process.env.GOOGLE_CLIENT_SECRET,
-      redirect_uri: process.env.GOOGLE_REDIRECT_URI,
+      redirect_uri: redirectUri,
       grant_type: "authorization_code",
     }).toString(),
     {
@@ -467,10 +475,7 @@ export const googleOAuthCallback = asyncHandler(async (req, res) => {
   setTokenCookie(res, "accessToken", accessTokenCookie, 15 * 60 * 1000);
   setTokenCookie(res, "refreshToken", refreshTokenCookie, 7 * 24 * 60 * 60 * 1000);
 
-  const redirectUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL;
-  if (!redirectUrl) {
-    throw new ApiError(500, 'Missing FRONTEND_URL / CLIENT_URL configuration');
-  }
+  const redirectUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL || '/';
 
   res.redirect(redirectUrl);
 });

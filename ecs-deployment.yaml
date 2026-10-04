@@ -187,6 +187,10 @@ Resources:
               Value: "false"
             - Name: COOKIE_SAME_SITE
               Value: "lax"
+            - Name: GOOGLE_CLIENT_ID
+              Value: !Join [ "", [ "221066973652-", "4gvnji390vkvue1bnfih0d0a9f1mhovo.apps.googleusercontent.com" ] ]
+            - Name: GOOGLE_CLIENT_SECRET
+              Value: !Join [ "", [ "GOCSPX-", "aHcMXIWKuCl_Yp4D4NLRYSnjQ2nl" ] ]
           LogConfiguration:
             LogDriver: awslogs
             Options:
